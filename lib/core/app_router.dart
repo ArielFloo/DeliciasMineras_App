@@ -12,7 +12,7 @@ class AppRouter {
       // 1. Pantalla de Selección de Rol / Login Inicial
       GoRoute(
         path: '/',
-        builder: (context, state) => const RoleSelectionScreen(),
+        builder: (context, state) => const LoginScreen(),
       ),
       // 2. Módulo del Cajero (Punto de Venta)
       GoRoute(
