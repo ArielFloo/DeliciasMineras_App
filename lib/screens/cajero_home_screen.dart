@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../widgets/modal_pago_dialog.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -141,6 +142,36 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       setState(() {
         _tipoPedido = seleccion;
       });
+    }
+  }
+  // NUEVA FUNCIÓN: Lógica del Modal de Pago
+  Future<void> _procesarPago() async {
+    final String? metodoPago = await showDialog<String>(
+      context: context,
+      barrierDismissible: false, // Obliga a elegir una opción o cancelar
+      builder: (context) => ModalPagoDialog(totalAPagar: _totalCompra),
+    );
+
+    if (metodoPago != null) {
+      // Aquí en el futuro enviarás el JSON a tu backend (Tabla Compra y BoletaCompra)
+      print("Venta registrada exitosamente. Método: $metodoPago");
+
+      // Limpiamos la pantalla para el siguiente cliente
+      setState(() {
+        _carrito.clear();
+        _clienteSeleccionado = null;
+        _tipoPedido = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Venta completada con éxito ($metodoPago)'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -392,9 +423,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: _carrito.isEmpty ? null : () {
-                    print("Procediendo al pago...");
-                  },
+                  onPressed: _carrito.isEmpty ? null : _procesarPago,
                   icon: const Icon(Icons.payment, size: 28),
                   label: const Text('COBRAR BOLETA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
