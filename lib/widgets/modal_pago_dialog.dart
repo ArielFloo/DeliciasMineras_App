@@ -2,16 +2,25 @@ import 'package:flutter/material.dart';
 
 class ModalPagoDialog extends StatelessWidget {
   final int totalAPagar;
+  final bool esFactura;
 
-  const ModalPagoDialog({super.key, required this.totalAPagar});
+  const ModalPagoDialog({
+    super.key, 
+    required this.totalAPagar,
+    required this.esFactura,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Cálculo matemático del IVA (19%)
+    final int neto = (totalAPagar / 1.19).round();
+    final int iva = totalAPagar - neto;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Center(
         child: Text(
-          'Procesar Pago',
+          esFactura ? 'Procesar Factura' : 'Procesar Boleta',
           style: TextStyle(
             color: Theme.of(context).colorScheme.secondary,
             fontWeight: FontWeight.bold,
@@ -33,7 +42,10 @@ class ModalPagoDialog extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const Text('Total a Cobrar', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  Text(
+                    esFactura ? 'Total a Cobrar (Factura)' : 'Total a Cobrar (Boleta)', 
+                    style: const TextStyle(fontSize: 16, color: Colors.grey)
+                  ),
                   Text(
                     '\$$totalAPagar',
                     style: TextStyle(
@@ -42,6 +54,29 @@ class ModalPagoDialog extends StatelessWidget {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
+                  
+                  // Si es factura, mostramos el desglose matemático
+                  if (esFactura) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Divider(),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Monto Neto:', style: TextStyle(color: Colors.black54, fontSize: 16)),
+                        Text('\$$neto', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('IVA (19%):', style: TextStyle(color: Colors.black54, fontSize: 16)),
+                        Text('\$$iva', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                  ]
                 ],
               ),
             ),
@@ -81,8 +116,6 @@ class ModalPagoDialog extends StatelessWidget {
   }
 }
 
-// Este sub-widget sí puede conservar el guion bajo, 
-// ya que solo se usa DENTRO de este mismo archivo.
 class _MetodoPagoCard extends StatelessWidget {
   final IconData icono;
   final String texto;

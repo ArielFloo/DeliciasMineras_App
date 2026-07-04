@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/modal_pago_dialog.dart';
+import '../core/app_theme.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -14,7 +15,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
   final List<Map<String, dynamic>> _productosDisponibles = [
     {'sku': 1, 'nombre': 'Pan de Molde Integral', 'precio': 2500, 'stock': 2},
-    {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 3},
+    {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 20}, 
     {'sku': 3, 'nombre': 'Kuchen de Manzana', 'precio': 8500, 'stock': 13},
     {'sku': 4, 'nombre': 'Baguette', 'precio': 1200, 'stock': 10},
     {'sku': 5, 'nombre': 'Donas Glaseadas', 'precio': 1000, 'stock': 0}, 
@@ -29,21 +30,26 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   final Map<int, int> _carrito = {};
   Map<String, dynamic>? _clienteSeleccionado;
   
-  // ESTADOS NUEVOS PARA EL PEDIDO Y DESPACHO
-  String? _tipoPedido; // Puede ser 'retiro' o 'despacho'
+  String? _tipoPedido; 
   final int _tarifaDespachoFija = 3500;
 
-  void _agregarAlCarrito(Map<String, dynamic> producto) {
+  int _multiplicador = 1;
+
+  void _agregarAlCarrito(Map<String, dynamic> producto, {int cantidad = 1}) {
     setState(() {
       int sku = producto['sku'];
       int stockActual = producto['stock'];
       int cantidadEnCarrito = _carrito[sku] ?? 0;
 
-      if (cantidadEnCarrito < stockActual) {
-        _carrito[sku] = cantidadEnCarrito + 1;
+      if (cantidadEnCarrito + cantidad <= stockActual) {
+        _carrito[sku] = cantidadEnCarrito + cantidad;
+        _multiplicador = 1; 
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No hay más stock de ${producto['nombre']}')),
+          SnackBar(
+            content: Text('Stock insuficiente. Solo quedan $stockActual unidades de ${producto['nombre']} en total.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       }
     });
@@ -72,7 +78,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
     final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
     if (index != -1) {
-      _agregarAlCarrito(_productosDisponibles[index]);
+      _agregarAlCarrito(_productosDisponibles[index], cantidad: _multiplicador);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('SKU $skuBuscado no encontrado en el sistema.')),
@@ -87,7 +93,47 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       builder: (context) => _BuscadorProductosDialog(productos: _productosDisponibles),
     );
     if (productoSeleccionado != null) {
-      _agregarAlCarrito(productoSeleccionado);
+      _agregarAlCarrito(productoSeleccionado, cantidad: _multiplicador);
+    }
+  }
+
+  Future<void> _configurarMultiplicador() async {
+    final TextEditingController multCtrl = TextEditingController();
+    
+    final int? nuevoMultiplicador = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Multiplicador de Cantidad', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        content: TextField(
+          controller: multCtrl,
+          keyboardType: TextInputType.number,
+          autofocus: true, 
+          decoration: const InputDecoration(
+            labelText: 'Ingrese cantidad a sumar',
+            hintText: 'Ej: 5',
+            prefixIcon: Icon(Icons.close),
+          ),
+          onSubmitted: (valor) {
+            Navigator.pop(context, int.tryParse(valor));
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, int.tryParse(multCtrl.text)),
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+
+    if (nuevoMultiplicador != null && nuevoMultiplicador > 0) {
+      setState(() {
+        _multiplicador = nuevoMultiplicador;
+      });
     }
   }
 
@@ -103,7 +149,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-  // NUEVA FUNCIÓN: Lógica para configurar el tipo de pedido
   Future<void> _configurarPedido() async {
     final String? seleccion = await showDialog<String>(
       context: context,
@@ -129,45 +174,148 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (seleccion != null) {
-      // Validamos la regla de negocio de la base de datos
       if (seleccion == 'despacho' && _clienteSeleccionado == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor,
             content: Text('Error: El despacho es exclusivo para clientes Empresa. Asigne un cliente mayorista primero.'),
           ),
         );
-        return; // Bloqueamos la acción
+        return; 
       }
       setState(() {
         _tipoPedido = seleccion;
       });
     }
   }
-  // NUEVA FUNCIÓN: Lógica del Modal de Pago
-  Future<void> _procesarPago() async {
+
+  Future<void> _procesarPago(bool esFactura) async {
     final String? metodoPago = await showDialog<String>(
       context: context,
-      barrierDismissible: false, // Obliga a elegir una opción o cancelar
-      builder: (context) => ModalPagoDialog(totalAPagar: _totalCompra),
+      barrierDismissible: false,
+      builder: (context) => ModalPagoDialog(
+        totalAPagar: _totalCompra,
+        esFactura: esFactura, 
+      ),
     );
 
     if (metodoPago != null) {
-      // Aquí en el futuro enviarás el JSON a tu backend (Tabla Compra y BoletaCompra)
-      print("Venta registrada exitosamente. Método: $metodoPago");
+      String tipoDoc = esFactura ? "Factura" : "Boleta";
+      print("Venta registrada. Documento: $tipoDoc | Método: $metodoPago");
 
-      // Limpiamos la pantalla para el siguiente cliente
       setState(() {
         _carrito.clear();
         _clienteSeleccionado = null;
         _tipoPedido = null;
+        _multiplicador = 1; 
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Venta completada con éxito ($metodoPago)'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _intentarCobrarBoleta() async {
+    if (_clienteSeleccionado != null) {
+      final bool? confirmar = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: AppTheme.warningColor, size: 32),
+              const SizedBox(width: 8),
+              Text(
+                '¿Emitir Boleta?',
+                style: TextStyle(color: Theme.of(context).colorScheme.secondary),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Tiene un Cliente Empresa asignado a esta venta.\n\n'
+            '¿Está seguro de que el cliente desea una BOLETA y no una FACTURA?\n'
+            '(Recuerde que este cambio es difícil de revertir en el SII).',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.warningColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Sí, emitir Boleta', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmar != true) return;
+    }
+    _procesarPago(false); 
+  }
+
+  // Función Anular la venta completa
+  Future<void> _anularVenta() async {
+    // Si la caja ya está vacía, el botón no hace nada
+    if (_carrito.isEmpty && _clienteSeleccionado == null && _tipoPedido == null) return;
+
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_rounded, color: AppTheme.errorColor, size: 32),
+            const SizedBox(width: 8),
+            Text('¿Anular toda la venta?', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+          ],
+        ),
+        content: const Text(
+          'Se eliminarán todos los productos escaneados, el cliente asignado y la configuración del pedido.\n\n¿Estás seguro de que deseas limpiar la caja?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Volver', style: TextStyle(fontSize: 16)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, Anular Venta', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    // Si el cajero confirma, limpiamos todas las variables
+    if (confirmar == true) {
+      setState(() {
+        _carrito.clear();
+        _clienteSeleccionado = null;
+        _tipoPedido = null;
+        _multiplicador = 1;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Venta anulada y caja limpiada.'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -181,7 +329,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       final producto = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
       total += (producto['precio'] as int) * cantidad;
     });
-    // Sumamos el despacho si corresponde
     if (_tipoPedido == 'despacho') {
       total += _tarifaDespachoFija;
     }
@@ -216,8 +363,34 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // CABECERA DE BÚSQUEDA
                   Row(
                     children: [
+                      SizedBox(
+                        height: 60,
+                        child: Tooltip(
+                          message: 'Cambiar cantidad a multiplicar',
+                          waitDuration: const Duration(milliseconds: 500), 
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _multiplicador > 1 
+                                  ? AppTheme.warningColor 
+                                  : Theme.of(context).colorScheme.primaryContainer,
+                              foregroundColor: _multiplicador > 1 
+                                  ? Colors.white 
+                                  : Theme.of(context).colorScheme.primary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _configurarMultiplicador,
+                            child: Text(
+                              'x$_multiplicador',
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      
                       Expanded(
                         child: TextField(
                           controller: _skuController,
@@ -259,23 +432,61 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                           color: Theme.of(context).colorScheme.secondary,
                         ),
                       ),
-                      // Mostrar etiqueta si es pedido especial
-                      if (_tipoPedido != null)
-                        Chip(
-                          backgroundColor: _tipoPedido == 'despacho' ? Colors.orange[100] : Colors.blue[100],
-                          label: Text(
-                            _tipoPedido == 'despacho' ? '🚚 DESPACHO' : '🛍️ RETIRO',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _tipoPedido == 'despacho' ? Colors.orange[900] : Colors.blue[900],
+                      // Agrupamos el Chip y el nuevo botón en un Row
+                      Row(
+                        children: [
+                          if (_tipoPedido != null)
+                            Chip(
+                              backgroundColor: _tipoPedido == 'despacho' ? AppTheme.warningColor.withOpacity(0.2) : AppTheme.infoColor.withOpacity(0.2),
+                              label: Text(
+                                _tipoPedido == 'despacho' ? '🚚 DESPACHO' : '🛍️ RETIRO',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: _tipoPedido == 'despacho' ? AppTheme.warningColor : AppTheme.infoColor,
+                                ),
+                              ),
+                              onDeleted: () => setState(() => _tipoPedido = null),
                             ),
-                          ),
-                          onDeleted: () => setState(() => _tipoPedido = null),
-                        ),
+                          
+                          const SizedBox(width: 16),
+                          
+                          // Botón de Anular Venta
+                          if (_carrito.isNotEmpty || _clienteSeleccionado != null)
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppTheme.errorColor,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              onPressed: _anularVenta,
+                              icon: const Icon(Icons.delete_sweep),
+                              label: const Text('Anular Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                   const Divider(thickness: 2),
                   
+                  if (_carrito.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
+                          Expanded(flex: 1, child: Text('Cant.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),
+                          Expanded(flex: 2, child: Text('Precio Unit.', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
+                          Expanded(flex: 2, child: Text('Subtotal', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
+                          SizedBox(width: 48), 
+                        ],
+                      ),
+                    ),
+                  
+                  if (_carrito.isNotEmpty) const SizedBox(height: 8),
+
                   Expanded(
                     child: _carrito.isEmpty
                         ? const Center(
@@ -286,25 +497,63 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                           )
                         : ListView.separated(
                             itemCount: _carrito.length,
-                            separatorBuilder: (context, index) => const Divider(),
+                            separatorBuilder: (context, index) => const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final sku = _carrito.keys.elementAt(index);
                               final cantidad = _carrito[sku]!;
                               final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
                               final subtotal = (prod['precio'] as int) * cantidad;
 
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(prod['nombre'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                                subtitle: Text('SKU: ${prod['sku']}'),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                                child: Row(
                                   children: [
-                                    Text('$cantidad x \$${prod['precio']} = \$$subtotal', style: const TextStyle(fontSize: 18)),
-                                    const SizedBox(width: 16),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () => _removerDelCarrito(sku),
+                                    Expanded(
+                                      flex: 4,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(prod['nombre'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: Text(
+                                        '$cantidad', 
+                                        textAlign: TextAlign.center, 
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '\$${prod['precio']}', 
+                                        textAlign: TextAlign.right, 
+                                        style: TextStyle(fontSize: 15, color: Colors.grey[700])
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '\$$subtotal', 
+                                        textAlign: TextAlign.right, 
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 48,
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: IconButton(
+                                          icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+                                          onPressed: () => _removerDelCarrito(sku),
+                                          tooltip: 'Eliminar unidad',
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -313,12 +562,11 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                           ),
                   ),
                   
-                  // NUEVO: Fila del costo de despacho en la boleta
                   if (_tipoPedido == 'despacho') ...[
                     const Divider(),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.local_shipping, color: Colors.orange),
+                      leading: const Icon(Icons.local_shipping, color: AppTheme.warningColor),
                       title: const Text('Costo de Envío Fijo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                       trailing: Text('\$$_tarifaDespachoFija', style: const TextStyle(fontSize: 18)),
                     ),
@@ -351,8 +599,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      foregroundColor: Colors.teal[700],
-                      side: BorderSide(color: Colors.teal[700]!),
+                      foregroundColor: AppTheme.businessColor,
+                      side: const BorderSide(color: AppTheme.businessColor),
                     ),
                     onPressed: _abrirBuscadorMayoristas,
                     icon: const Icon(Icons.business),
@@ -372,16 +620,15 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.verified, color: Colors.amber, size: 20),
+                                  Icon(Icons.verified, color: AppTheme.warningColor, size: 20),
                                   SizedBox(width: 8),
-                                  Text('CLIENTE EMPRESA', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                                  Text('CLIENTE EMPRESA', style: TextStyle(color: AppTheme.warningColor, fontWeight: FontWeight.bold, fontSize: 12)),
                                 ],
                               ),
                               GestureDetector(
                                 onTap: () {
                                   setState(() {
                                     _clienteSeleccionado = null;
-                                    // Si quitamos el cliente empresa, anulamos el despacho si estaba activo
                                     if (_tipoPedido == 'despacho') _tipoPedido = null;
                                   });
                                 },
@@ -404,12 +651,11 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
                 const SizedBox(height: 16),
                 
-                // NUEVO BOTÓN: A Pedido
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Colors.orange[800],
-                    side: BorderSide(color: Colors.orange[800]!),
+                    foregroundColor: AppTheme.warningColor,
+                    side: const BorderSide(color: AppTheme.warningColor),
                   ),
                   onPressed: _configurarPedido,
                   icon: const Icon(Icons.inventory_2),
@@ -423,24 +669,40 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: _carrito.isEmpty ? null : _procesarPago,
-                  icon: const Icon(Icons.payment, size: 28),
+                  onPressed: _carrito.isEmpty ? null : _intentarCobrarBoleta, 
+                  icon: const Icon(Icons.receipt, size: 28),
                   label: const Text('COBRAR BOLETA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
+                const SizedBox(height: 12),
+
+                (_carrito.isNotEmpty && _clienteSeleccionado != null)
+                    ? ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 24), 
+                          backgroundColor: AppTheme.highlightColor, 
+                          foregroundColor: Colors.white,
+                          elevation: 6, 
+                          shadowColor: AppTheme.highlightColor.withOpacity(0.5),
+                        ),
+                        onPressed: () => _procesarPago(true), 
+                        icon: const Icon(Icons.receipt_long, size: 28),
+                        label: const Text('EMITIR FACTURA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      )
+                    : OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          foregroundColor: Colors.grey, 
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        onPressed: null, 
+                        icon: const Icon(Icons.receipt_long),
+                        label: const Text('EMITIR FACTURA', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+
                 const SizedBox(height: 32),
                 const Divider(),
                 const SizedBox(height: 16),
 
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Theme.of(context).colorScheme.secondary,
-                  ),
-                  onPressed: () {},
-                  icon: const Icon(Icons.receipt_long),
-                  label: const Text('Emitir Factura'),
-                ),
-                const SizedBox(height: 12),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -465,8 +727,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
+                    foregroundColor: AppTheme.errorColor,
+                    side: const BorderSide(color: AppTheme.errorColor),
                   ),
                   onPressed: () {},
                   icon: const Icon(Icons.lock_clock),
@@ -481,7 +743,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   }
 }
 
-// ... Mantienes los widgets _BuscadorProductosDialog y _BuscadorClientesDialog intactos al final
+// =====================================================================
+// WIDGETS DE BÚSQUEDA
+// =====================================================================
 class _BuscadorProductosDialog extends StatefulWidget {
   final List<Map<String, dynamic>> productos;
   const _BuscadorProductosDialog({required this.productos});
@@ -514,7 +778,7 @@ class _BuscadorProductosDialogState extends State<_BuscadorProductosDialog> {
                   return ListTile(
                     title: Text(prod['nombre']),
                     subtitle: Text('SKU: ${prod['sku']} | Precio: \$${prod['precio']}'),
-                    trailing: Text('Stock: ${prod['stock']}', style: TextStyle(color: sinStock ? Colors.red : Colors.green, fontWeight: FontWeight.bold)),
+                    trailing: Text('Stock: ${prod['stock']}', style: TextStyle(color: sinStock ? AppTheme.errorColor : AppTheme.successColor, fontWeight: FontWeight.bold)),
                     enabled: !sinStock, 
                     onTap: () => Navigator.pop(context, prod),
                   );
