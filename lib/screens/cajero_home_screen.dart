@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/modal_pago_dialog.dart';
 import '../core/app_theme.dart';
+import '../services/auth_service.dart';
+import 'dart:async';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -11,6 +13,43 @@ class CajeroHomeScreen extends StatefulWidget {
 }
 
 class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
+
+  // ESTADO DEL USUARIO Y SESIÓN
+  late DateTime _horaInicioTurno;
+  Timer? _timer;
+  String _tiempoTranscurrido = "00:00:00";
+  // Obtenemos al usuario que inició sesión
+  final Empleado? _cajeroActual = AuthService().currentUser;
+
+
+  @override
+  void initState() {
+    super.initState();
+    // Guardamos la hora exacta en la que entró a esta pantalla
+    // (En un futuro, aquí podremos leer la hora desde la base de datos o SharedPreferences)
+    _horaInicioTurno = DateTime.now();
+    
+    // Reloj que se actualiza cada segundo
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _actualizarTiempoSesion();
+    });
+  }
+
+  void _actualizarTiempoSesion() {
+    final ahora = DateTime.now();
+    final diferencia = ahora.difference(_horaInicioTurno);
+
+    // Formateamos la diferencia para que se vea como HH:MM:SS
+    String dosDigitos(int n) => n.toString().padLeft(2, "0");
+    String horas = dosDigitos(diferencia.inHours);
+    String minutos = dosDigitos(diferencia.inMinutes.remainder(60));
+    String segundos = dosDigitos(diferencia.inSeconds.remainder(60));
+
+    setState(() {
+      _tiempoTranscurrido = "$horas:$minutos:$segundos";
+    });
+  }
+
   final TextEditingController _skuController = TextEditingController();
 
   final List<Map<String, dynamic>> _productosDisponibles = [
@@ -338,14 +377,20 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   @override
   void dispose() {
     _skuController.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+return Scaffold(
       appBar: AppBar(
-        title: const Text('Delicias Mineras - Terminal de Caja'),
+        toolbarHeight: 80,
+        title: Image.asset(
+          'assets/banner.png', 
+          height: 80, // Limitamos la altura para que no desborde la barra superior
+          fit: BoxFit.contain, 
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -724,6 +769,69 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                 ),
                 
                 const Spacer(), 
+
+                // TARJETA DE INFORMACIÓN DEL CAJERO
+                if (_cajeroActual != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              foregroundColor: Colors.white,
+                              radius: 20,
+                              // Inicial del nombre
+                              child: Text(_cajeroActual!.nombre[0], style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _cajeroActual!.nombre,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'RUT: ${_cajeroActual!.rut}',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Tiempo de turno:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text(
+                              _tiempoTranscurrido,
+                              style: TextStyle(
+                                fontSize: 14, 
+                                fontWeight: FontWeight.bold, 
+                                color: Theme.of(context).colorScheme.primary,
+                                fontFamily: 'monospace', // Para que los números no salten
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
