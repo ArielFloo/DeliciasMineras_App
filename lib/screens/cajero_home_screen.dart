@@ -4,6 +4,7 @@ import '../widgets/modal_pago_dialog.dart';
 import '../core/app_theme.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
+import '../widgets/tarjeta_resumen_caja.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -20,6 +21,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   String _tiempoTranscurrido = "00:00:00";
   // Obtenemos al usuario que inició sesión
   final Empleado? _cajeroActual = AuthService().currentUser;
+
+  // Lista para almacenar ventas concretadas (aunque no se persistan en la base de datos aún)
+  final List<Map<String, dynamic>> _ventasDelDia = [];
 
 
   @override
@@ -228,6 +232,94 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
+  // NUEVA FUNCIÓN: Muestra el reporte de ventas de la sesión actual
+  void _mostrarDetalleVentas() {
+    int totalEfectivo = 0;
+    int totalDebito = 0;
+    int totalCredito = 0;
+
+    // Calculamos los totales recorriendo nuestra lista en memoria
+    for (var venta in _ventasDelDia) {
+      if (venta['metodo'] == 'Efectivo') totalEfectivo += venta['total'] as int;
+      if (venta['metodo'] == 'Debito') totalDebito += venta['total'] as int;
+      if (venta['metodo'] == 'Credito') totalCredito += venta['total'] as int;
+    }
+
+    final int totalAcumulado = totalEfectivo + totalDebito + totalCredito;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Cuadros de resumen
+              Row(
+                children: [
+                  TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
+                  const SizedBox(width: 8),
+                  TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+              const Divider(height: 32),
+              const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              
+              // Lista de transacciones
+              Expanded(
+                child: _ventasDelDia.isEmpty
+                    ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
+                    : ListView.builder(
+                        itemCount: _ventasDelDia.length,
+                        itemBuilder: (context, index) {
+                          // Invertimos la lista para ver la más reciente arriba
+                          final venta = _ventasDelDia[_ventasDelDia.length - 1 - index];
+                          final hora = venta['hora'] as DateTime;
+                          final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
+                          
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.grey[200],
+                              child: Icon(
+                                venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
+                                color: Theme.of(context).colorScheme.secondary,
+                                size: 18,
+                              ),
+                            ),
+                            title: Text('${venta['documento']} - ${venta['metodo']}'),
+                            subtitle: Text(horaStr),
+                            trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _procesarPago(bool esFactura) async {
     final String? metodoPago = await showDialog<String>(
       context: context,
@@ -241,6 +333,14 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     if (metodoPago != null) {
       String tipoDoc = esFactura ? "Factura" : "Boleta";
       print("Venta registrada. Documento: $tipoDoc | Método: $metodoPago");
+
+      //Registramos la venta en nuestra lista temporal de ventas del día (aunque no se persista en la base de datos aún)
+      _ventasDelDia.add({
+        'hora': DateTime.now(),
+        'documento': tipoDoc,
+        'metodo': metodoPago,
+        'total': _totalCompra,
+      });
 
       setState(() {
         _carrito.clear();
@@ -304,7 +404,165 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
     _procesarPago(false); 
   }
+// Venta manual: Procesa el carrito como un Vale Interno (sin valor tributario)
+  Future<void> _procesarValeInterno() async {
+    if (_carrito.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El carrito está vacío. Agregue productos primero.'),
+          backgroundColor: AppTheme.warningColor,
+        ),
+      );
+      return;
+    }
 
+    final TextEditingController motivoCtrl = TextEditingController();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Emitir Vale Interno', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Esta operación descuenta el stock de los productos pero NO genera una Boleta ni Factura.', 
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: motivoCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Motivo del Vale', 
+                hintText: 'Ej: Fiado, Merma, Consumo personal...'
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null), 
+            child: const Text('Cancelar')
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.infoColor, // Usamos el color azul de info
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              final motivo = motivoCtrl.text.trim();
+              if (motivo.isNotEmpty) {
+                Navigator.pop(context, motivo);
+              }
+            },
+            child: const Text('Registrar Vale', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      // Aquí el sistema enviaría el registro a la base de datos (Tabla ComprobantesInternos)
+      print("Vale Interno emitido. Total: $_totalCompra. Motivo: $result");
+
+      setState(() {
+        _carrito.clear();
+        _clienteSeleccionado = null;
+        _tipoPedido = null;
+        _multiplicador = 1;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Vale Interno registrado con éxito: $result'),
+            backgroundColor: AppTheme.infoColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // NUEVA FUNCIÓN: Finaliza el turno y cierra la sesión del cajero
+  Future<void> _cerrarCaja() async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // Obliga a elegir una opción
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_clock, color: AppTheme.errorColor, size: 32),
+            const SizedBox(width: 8),
+            Text('Cierre de Caja', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '¿Estás seguro de que deseas cerrar la caja y finalizar tu turno?',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Tiempo total del turno:'),
+                  Text(
+                    _tiempoTranscurrido,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, Cerrar Caja', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      // 1. Aquí iría la lógica de base de datos para guardar el turno
+      print("Turno finalizado. Tiempo total: $_tiempoTranscurrido");
+
+      // 2. Destruimos el temporizador para limpiar la memoria
+      _timer?.cancel();
+
+      // 3. Redirigimos al Login
+      if (mounted) {
+        context.go('/');
+      }
+    }
+  }
   // Función Anular la venta completa
   Future<void> _anularVenta() async {
     // Si la caja ya está vacía, el botón no hace nada
@@ -534,10 +792,10 @@ return Scaffold(
 
                   Expanded(
                     child: _carrito.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
                               'Escanea un producto para comenzar',
-                              style: TextStyle(fontSize: 20, color: Colors.grey),
+                              style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.outline),
                             ),
                           )
                         : ListView.separated(
@@ -559,7 +817,7 @@ return Scaffold(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(prod['nombre'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                                          Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                         ],
                                       ),
                                     ),
@@ -576,7 +834,7 @@ return Scaffold(
                                       child: Text(
                                         '\$${prod['precio']}', 
                                         textAlign: TextAlign.right, 
-                                        style: TextStyle(fontSize: 15, color: Colors.grey[700])
+                                        style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant)
                                       ),
                                     ),
                                     Expanded(
@@ -677,7 +935,7 @@ return Scaffold(
                                     if (_tipoPedido == 'despacho') _tipoPedido = null;
                                   });
                                 },
-                                child: const Icon(Icons.close, color: Colors.white70, size: 20),
+                                child:  Icon(Icons.close,color: Theme.of(context).colorScheme.onSecondary.withOpacity(0.7), size: 20),
                               ),
                             ],
                           ),
@@ -687,7 +945,7 @@ return Scaffold(
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                           const SizedBox(height: 4),
-                          Text('RUT: ${_clienteSeleccionado!['rut']}', style: const TextStyle(color: Colors.white70)),
+                          Text('RUT: ${_clienteSeleccionado!['rut']}', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary.withOpacity(0.7))),
                         ],
                       ),
                     ),
@@ -751,11 +1009,12 @@ return Scaffold(
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Theme.of(context).colorScheme.secondary,
+                    foregroundColor: AppTheme.infoColor,
+                    side: const BorderSide(color: AppTheme.infoColor),
                   ),
-                  onPressed: () {},
-                  icon: const Icon(Icons.pan_tool),
-                  label: const Text('Venta Manual'),
+                  onPressed: _procesarValeInterno,
+                  icon: const Icon(Icons.assignment), // Ícono de documento interno
+                  label: const Text('VENTA MANUAL', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
@@ -763,7 +1022,7 @@ return Scaffold(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     foregroundColor: Theme.of(context).colorScheme.secondary,
                   ),
-                  onPressed: () {},
+                  onPressed:_mostrarDetalleVentas,
                   icon: const Icon(Icons.assessment),
                   label: const Text('Detalle Venta del Día'),
                 ),
@@ -803,7 +1062,7 @@ return Scaffold(
                                   ),
                                   Text(
                                     'RUT: ${_cajeroActual!.rut}',
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                   ),
                                 ],
                               ),
@@ -838,7 +1097,7 @@ return Scaffold(
                     foregroundColor: AppTheme.errorColor,
                     side: const BorderSide(color: AppTheme.errorColor),
                   ),
-                  onPressed: () {},
+                  onPressed: _cerrarCaja,
                   icon: const Icon(Icons.lock_clock),
                   label: const Text('Cierre de Caja', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
@@ -851,9 +1110,8 @@ return Scaffold(
   }
 }
 
-// =====================================================================
 // WIDGETS DE BÚSQUEDA
-// =====================================================================
+
 class _BuscadorProductosDialog extends StatefulWidget {
   final List<Map<String, dynamic>> productos;
   const _BuscadorProductosDialog({required this.productos});
