@@ -5,11 +5,12 @@ import '../core/app_theme.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
 import '../widgets/tarjeta_resumen_caja.dart';
-
-// NUEVAS IMPORTACIONES DE TUS WIDGETS REFACTORIZADOS
 import '../widgets/panel_control_cajero.dart';
 import '../widgets/buscador_productos_dialog.dart';
 import '../widgets/buscador_clientes_dialog.dart';
+
+// NUEVA IMPORTACIÓN DE LA BASE DE DATOS
+import '../data/mock_database.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -19,14 +20,23 @@ class CajeroHomeScreen extends StatefulWidget {
 }
 
 class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
-
   // ESTADO DEL USUARIO Y SESIÓN
   late DateTime _horaInicioTurno;
   Timer? _timer;
   String _tiempoTranscurrido = "00:00:00";
   final Empleado? _cajeroActual = AuthService().currentUser;
 
-  final List<Map<String, dynamic>> _ventasDelDia = [];
+  // LISTAS ASÍNCRONAS (Vacías por defecto, se llenan desde la DB)
+  List<Map<String, dynamic>> _productosDisponibles = [];
+  List<Map<String, dynamic>> _clientesMayoristas = [];
+  bool _cargandoDatos = true; // Controla la pantalla de carga inicial
+
+  final TextEditingController _skuController = TextEditingController();
+  final Map<int, int> _carrito = {};
+  Map<String, dynamic>? _clienteSeleccionado;
+  String? _tipoPedido; 
+  final int _tarifaDespachoFija = 3500;
+  int _multiplicador = 1;
 
   @override
   void initState() {
@@ -35,6 +45,23 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _actualizarTiempoSesion();
     });
+    
+    // Cargamos los datos desde el "Servidor" al iniciar la pantalla
+    _cargarDatosDeServidor();
+  }
+
+  Future<void> _cargarDatosDeServidor() async {
+    try {
+      final prods = await MockDatabase.instancia.obtenerProductos();
+      final clients = await MockDatabase.instancia.obtenerClientes();
+      setState(() {
+        _productosDisponibles = prods;
+        _clientesMayoristas = clients;
+        _cargandoDatos = false;
+      });
+    } catch (e) {
+      print("Error al cargar datos: $e");
+    }
   }
 
   void _actualizarTiempoSesion() {
@@ -50,28 +77,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       _tiempoTranscurrido = "$horas:$minutos:$segundos";
     });
   }
-
-  final TextEditingController _skuController = TextEditingController();
-
-  final List<Map<String, dynamic>> _productosDisponibles = [
-    {'sku': 1, 'nombre': 'Pan de Molde Integral', 'precio': 2500, 'stock': 2},
-    {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 20}, 
-    {'sku': 3, 'nombre': 'Kuchen de Manzana', 'precio': 8500, 'stock': 13},
-    {'sku': 4, 'nombre': 'Baguette', 'precio': 1200, 'stock': 10},
-    {'sku': 5, 'nombre': 'Donas Glaseadas', 'precio': 1000, 'stock': 0}, 
-  ];
-
-  final List<Map<String, dynamic>> _clientesMayoristas = [
-    {'rut': '76738555-3', 'nombre': 'Laboratorio Carreño, Mora y Jara Ltda.', 'giro': 'Laboratorio'},
-    {'rut': '74498685-0', 'nombre': 'Grupo Díaz y Catalan S.p.A.', 'giro': 'Comercio'},
-    {'rut': '78956253-6', 'nombre': 'Becerra, Garrido y Olivares Ltda.', 'giro': 'Distribución'},
-  ];
-
-  final Map<int, int> _carrito = {};
-  Map<String, dynamic>? _clienteSeleccionado;
-  String? _tipoPedido; 
-  final int _tarifaDespachoFija = 3500;
-  int _multiplicador = 1;
 
   void _agregarAlCarrito(Map<String, dynamic> producto, {int cantidad = 1}) {
     setState(() {
@@ -227,12 +232,25 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-  void _mostrarDetalleVentas() {
+  Future<void> _mostrarDetalleVentas() async {
+    // 1. Mostrar loader de red
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // 2. Traer las ventas frescas desde la MockDatabase
+    final ventasDB = await MockDatabase.instancia.obtenerVentasDelDia();
+    
+    // 3. Cerrar loader
+    if (mounted) Navigator.pop(context);
+
     int totalEfectivo = 0;
     int totalDebito = 0;
     int totalCredito = 0;
 
-    for (var venta in _ventasDelDia) {
+    for (var venta in ventasDB) {
       if (venta['metodo'] == 'Efectivo') totalEfectivo += venta['total'] as int;
       if (venta['metodo'] == 'Debito') totalDebito += venta['total'] as int;
       if (venta['metodo'] == 'Credito') totalCredito += venta['total'] as int;
@@ -240,74 +258,76 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
     final int totalAcumulado = totalEfectivo + totalDebito + totalCredito;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
-          ],
-        ),
-        content: SizedBox(
-          width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
             children: [
-              Row(
-                children: [
-                  TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
-                  const SizedBox(width: 8),
-                  TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
-              const Divider(height: 32),
-              const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              
-              Expanded(
-                child: _ventasDelDia.isEmpty
-                    ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                        itemCount: _ventasDelDia.length,
-                        itemBuilder: (context, index) {
-                          final venta = _ventasDelDia[_ventasDelDia.length - 1 - index];
-                          final hora = venta['hora'] as DateTime;
-                          final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
-                          
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Colors.grey[200],
-                              child: Icon(
-                                venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
-                                color: Theme.of(context).colorScheme.secondary,
-                                size: 18,
-                              ),
-                            ),
-                            title: Text('${venta['documento']} - ${venta['metodo']}'),
-                            subtitle: Text(horaStr),
-                            trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          );
-                        },
-                      ),
-              ),
+              Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
+                    const SizedBox(width: 8),
+                    TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                const Divider(height: 32),
+                const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                
+                Expanded(
+                  child: ventasDB.isEmpty
+                      ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          itemCount: ventasDB.length,
+                          itemBuilder: (context, index) {
+                            final venta = ventasDB[ventasDB.length - 1 - index];
+                            final hora = venta['hora'] as DateTime;
+                            final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
+                            
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.grey[200],
+                                child: Icon(
+                                  venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  size: 18,
+                                ),
+                              ),
+                              title: Text('${venta['documento']} - ${venta['metodo']}'),
+                              subtitle: Text(horaStr),
+                              trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _procesarPago(bool esFactura) async {
@@ -322,14 +342,27 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
     if (metodoPago != null) {
       String tipoDoc = esFactura ? "Factura" : "Boleta";
-      print("Venta registrada. Documento: $tipoDoc | Método: $metodoPago");
+      
+      // Mostrar loader mientras guardamos en BD
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-      _ventasDelDia.add({
-        'hora': DateTime.now(),
-        'documento': tipoDoc,
-        'metodo': metodoPago,
-        'total': _totalCompra,
-      });
+      // Despachar a MockDatabase
+      await MockDatabase.instancia.registrarVenta(
+        carrito: _carrito,
+        total: _totalCompra,
+        documento: tipoDoc,
+        metodoPago: metodoPago,
+        cliente: _clienteSeleccionado,
+      );
+
+      // Refrescar inventario local para que el cajero vea el stock descontado
+      await _cargarDatosDeServidor();
+
+      if (mounted) Navigator.pop(context); // Cerrar loader
 
       setState(() {
         _carrito.clear();
@@ -453,7 +486,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (result != null) {
-      print("Vale Interno emitido. Total: $_totalCompra. Motivo: $result");
+      // Mostrar loader
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await MockDatabase.instancia.registrarValeInterno(_carrito, result);
+      await _cargarDatosDeServidor(); // Refrescar stock local
+
+      if (mounted) Navigator.pop(context); // Quitar loader
 
       setState(() {
         _carrito.clear();
@@ -538,7 +581,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (confirmar == true) {
-      print("Turno finalizado. Tiempo total: $_tiempoTranscurrido");
       _timer?.cancel();
       if (mounted) {
         context.go('/');
@@ -621,6 +663,22 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // PROTECCIÓN DE PANTALLA MIENTRAS CARGA LA DB
+    if (_cargandoDatos) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Cargando terminal de venta...', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 80,
