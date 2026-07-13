@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart'; 
+import '../utils/app_formatters.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -145,6 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               prefixIcon: const Icon(Icons.badge_outlined),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             ),
+                            inputFormatters: [RutInputFormatter()],
                             validator: (val) {
                               if (val == null || val.isEmpty) {
                                 return 'El RUT es obligatorio';
@@ -251,13 +253,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     Divider(color: Colors.black26),
                     Text('👤 Cajero:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 21936615-9 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 21.936.615-9 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     
                     Text('🚚 Repartidor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 22222222-2 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 22.222.222-2 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     
                     Text('⚙️ Administrador:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 33333333-3 | Pass: 123', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 33.333.333-3 | Pass: 123', style: TextStyle(fontSize: 12, color: Colors.black87)),
                   ],
                 ),
               ),

@@ -5,6 +5,12 @@ import '../core/app_theme.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
 import '../widgets/tarjeta_resumen_caja.dart';
+import '../widgets/panel_control_cajero.dart';
+import '../widgets/buscador_productos_dialog.dart';
+import '../widgets/buscador_clientes_dialog.dart';
+
+// NUEVA IMPORTACIÓN DE LA BASE DE DATOS
+import '../data/mock_database.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -14,36 +20,54 @@ class CajeroHomeScreen extends StatefulWidget {
 }
 
 class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
-
   // ESTADO DEL USUARIO Y SESIÓN
   late DateTime _horaInicioTurno;
   Timer? _timer;
   String _tiempoTranscurrido = "00:00:00";
-  // Obtenemos al usuario que inició sesión
   final Empleado? _cajeroActual = AuthService().currentUser;
 
-  // Lista para almacenar ventas concretadas (aunque no se persistan en la base de datos aún)
-  final List<Map<String, dynamic>> _ventasDelDia = [];
+  // LISTAS ASÍNCRONAS (Vacías por defecto, se llenan desde la DB)
+  List<Map<String, dynamic>> _productosDisponibles = [];
+  List<Map<String, dynamic>> _clientesMayoristas = [];
+  bool _cargandoDatos = true; // Controla la pantalla de carga inicial
 
+  final TextEditingController _skuController = TextEditingController();
+  final Map<int, int> _carrito = {};
+  Map<String, dynamic>? _clienteSeleccionado;
+  String? _tipoPedido; 
+  final int _tarifaDespachoFija = 3500;
+  int _multiplicador = 1;
 
   @override
   void initState() {
     super.initState();
-    // Guardamos la hora exacta en la que entró a esta pantalla
-    // (En un futuro, aquí podremos leer la hora desde la base de datos o SharedPreferences)
     _horaInicioTurno = DateTime.now();
-    
-    // Reloj que se actualiza cada segundo
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _actualizarTiempoSesion();
     });
+    
+    // Cargamos los datos desde el "Servidor" al iniciar la pantalla
+    _cargarDatosDeServidor();
+  }
+
+  Future<void> _cargarDatosDeServidor() async {
+    try {
+      final prods = await MockDatabase.instancia.obtenerProductos();
+      final clients = await MockDatabase.instancia.obtenerClientes();
+      setState(() {
+        _productosDisponibles = prods;
+        _clientesMayoristas = clients;
+        _cargandoDatos = false;
+      });
+    } catch (e) {
+      print("Error al cargar datos: $e");
+    }
   }
 
   void _actualizarTiempoSesion() {
     final ahora = DateTime.now();
     final diferencia = ahora.difference(_horaInicioTurno);
 
-    // Formateamos la diferencia para que se vea como HH:MM:SS
     String dosDigitos(int n) => n.toString().padLeft(2, "0");
     String horas = dosDigitos(diferencia.inHours);
     String minutos = dosDigitos(diferencia.inMinutes.remainder(60));
@@ -53,30 +77,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       _tiempoTranscurrido = "$horas:$minutos:$segundos";
     });
   }
-
-  final TextEditingController _skuController = TextEditingController();
-
-  final List<Map<String, dynamic>> _productosDisponibles = [
-    {'sku': 1, 'nombre': 'Pan de Molde Integral', 'precio': 2500, 'stock': 2},
-    {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 20}, 
-    {'sku': 3, 'nombre': 'Kuchen de Manzana', 'precio': 8500, 'stock': 13},
-    {'sku': 4, 'nombre': 'Baguette', 'precio': 1200, 'stock': 10},
-    {'sku': 5, 'nombre': 'Donas Glaseadas', 'precio': 1000, 'stock': 0}, 
-  ];
-
-  final List<Map<String, dynamic>> _clientesMayoristas = [
-    {'rut': '76738555-3', 'nombre': 'Laboratorio Carreño, Mora y Jara Ltda.', 'giro': 'Laboratorio'},
-    {'rut': '74498685-0', 'nombre': 'Grupo Díaz y Catalan S.p.A.', 'giro': 'Comercio'},
-    {'rut': '78956253-6', 'nombre': 'Becerra, Garrido y Olivares Ltda.', 'giro': 'Distribución'},
-  ];
-
-  final Map<int, int> _carrito = {};
-  Map<String, dynamic>? _clienteSeleccionado;
-  
-  String? _tipoPedido; 
-  final int _tarifaDespachoFija = 3500;
-
-  int _multiplicador = 1;
 
   void _agregarAlCarrito(Map<String, dynamic> producto, {int cantidad = 1}) {
     setState(() {
@@ -133,7 +133,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   Future<void> _abrirBuscadorAvanzado() async {
     final Map<String, dynamic>? productoSeleccionado = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _BuscadorProductosDialog(productos: _productosDisponibles),
+      builder: (context) => BuscadorProductosDialog(productos: _productosDisponibles),
     );
     if (productoSeleccionado != null) {
       _agregarAlCarrito(productoSeleccionado, cantidad: _multiplicador);
@@ -183,7 +183,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   Future<void> _abrirBuscadorMayoristas() async {
     final Map<String, dynamic>? clienteEncontrado = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _BuscadorClientesDialog(clientes: _clientesMayoristas),
+      builder: (context) => BuscadorClientesDialog(clientes: _clientesMayoristas),
     );
     if (clienteEncontrado != null) {
       setState(() {
@@ -232,14 +232,25 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-  // NUEVA FUNCIÓN: Muestra el reporte de ventas de la sesión actual
-  void _mostrarDetalleVentas() {
+  Future<void> _mostrarDetalleVentas() async {
+    // 1. Mostrar loader de red
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // 2. Traer las ventas frescas desde la MockDatabase
+    final ventasDB = await MockDatabase.instancia.obtenerVentasDelDia();
+    
+    // 3. Cerrar loader
+    if (mounted) Navigator.pop(context);
+
     int totalEfectivo = 0;
     int totalDebito = 0;
     int totalCredito = 0;
 
-    // Calculamos los totales recorriendo nuestra lista en memoria
-    for (var venta in _ventasDelDia) {
+    for (var venta in ventasDB) {
       if (venta['metodo'] == 'Efectivo') totalEfectivo += venta['total'] as int;
       if (venta['metodo'] == 'Debito') totalDebito += venta['total'] as int;
       if (venta['metodo'] == 'Credito') totalCredito += venta['total'] as int;
@@ -247,77 +258,76 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
     final int totalAcumulado = totalEfectivo + totalDebito + totalCredito;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
-          ],
-        ),
-        content: SizedBox(
-          width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
             children: [
-              // Cuadros de resumen
-              Row(
-                children: [
-                  TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
-                  const SizedBox(width: 8),
-                  TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
-              const Divider(height: 32),
-              const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              
-              // Lista de transacciones
-              Expanded(
-                child: _ventasDelDia.isEmpty
-                    ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                        itemCount: _ventasDelDia.length,
-                        itemBuilder: (context, index) {
-                          // Invertimos la lista para ver la más reciente arriba
-                          final venta = _ventasDelDia[_ventasDelDia.length - 1 - index];
-                          final hora = venta['hora'] as DateTime;
-                          final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
-                          
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Colors.grey[200],
-                              child: Icon(
-                                venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
-                                color: Theme.of(context).colorScheme.secondary,
-                                size: 18,
-                              ),
-                            ),
-                            title: Text('${venta['documento']} - ${venta['metodo']}'),
-                            subtitle: Text(horaStr),
-                            trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          );
-                        },
-                      ),
-              ),
+              Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
+                    const SizedBox(width: 8),
+                    TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                const Divider(height: 32),
+                const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                
+                Expanded(
+                  child: ventasDB.isEmpty
+                      ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          itemCount: ventasDB.length,
+                          itemBuilder: (context, index) {
+                            final venta = ventasDB[ventasDB.length - 1 - index];
+                            final hora = venta['hora'] as DateTime;
+                            final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
+                            
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.grey[200],
+                                child: Icon(
+                                  venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  size: 18,
+                                ),
+                              ),
+                              title: Text('${venta['documento']} - ${venta['metodo']}'),
+                              subtitle: Text(horaStr),
+                              trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _procesarPago(bool esFactura) async {
@@ -332,15 +342,27 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
     if (metodoPago != null) {
       String tipoDoc = esFactura ? "Factura" : "Boleta";
-      print("Venta registrada. Documento: $tipoDoc | Método: $metodoPago");
+      
+      // Mostrar loader mientras guardamos en BD
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-      //Registramos la venta en nuestra lista temporal de ventas del día (aunque no se persista en la base de datos aún)
-      _ventasDelDia.add({
-        'hora': DateTime.now(),
-        'documento': tipoDoc,
-        'metodo': metodoPago,
-        'total': _totalCompra,
-      });
+      // Despachar a MockDatabase
+      await MockDatabase.instancia.registrarVenta(
+        carrito: _carrito,
+        total: _totalCompra,
+        documento: tipoDoc,
+        metodoPago: metodoPago,
+        cliente: _clienteSeleccionado,
+      );
+
+      // Refrescar inventario local para que el cajero vea el stock descontado
+      await _cargarDatosDeServidor();
+
+      if (mounted) Navigator.pop(context); // Cerrar loader
 
       setState(() {
         _carrito.clear();
@@ -404,7 +426,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
     _procesarPago(false); 
   }
-// Venta manual: Procesa el carrito como un Vale Interno (sin valor tributario)
+
   Future<void> _procesarValeInterno() async {
     if (_carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -448,7 +470,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.infoColor, // Usamos el color azul de info
+              backgroundColor: AppTheme.infoColor, 
               foregroundColor: Colors.white,
             ),
             onPressed: () {
@@ -464,8 +486,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (result != null) {
-      // Aquí el sistema enviaría el registro a la base de datos (Tabla ComprobantesInternos)
-      print("Vale Interno emitido. Total: $_totalCompra. Motivo: $result");
+      // Mostrar loader
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await MockDatabase.instancia.registrarValeInterno(_carrito, result);
+      await _cargarDatosDeServidor(); // Refrescar stock local
+
+      if (mounted) Navigator.pop(context); // Quitar loader
 
       setState(() {
         _carrito.clear();
@@ -486,11 +517,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-  // NUEVA FUNCIÓN: Finaliza el turno y cierra la sesión del cajero
   Future<void> _cerrarCaja() async {
     final bool? confirmar = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // Obliga a elegir una opción
+      barrierDismissible: false, 
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
@@ -551,21 +581,14 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (confirmar == true) {
-      // 1. Aquí iría la lógica de base de datos para guardar el turno
-      print("Turno finalizado. Tiempo total: $_tiempoTranscurrido");
-
-      // 2. Destruimos el temporizador para limpiar la memoria
       _timer?.cancel();
-
-      // 3. Redirigimos al Login
       if (mounted) {
         context.go('/');
       }
     }
   }
-  // Función Anular la venta completa
+
   Future<void> _anularVenta() async {
-    // Si la caja ya está vacía, el botón no hace nada
     if (_carrito.isEmpty && _clienteSeleccionado == null && _tipoPedido == null) return;
 
     final bool? confirmar = await showDialog<bool>(
@@ -600,7 +623,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       ),
     );
 
-    // Si el cajero confirma, limpiamos todas las variables
     if (confirmar == true) {
       setState(() {
         _carrito.clear();
@@ -641,12 +663,28 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-return Scaffold(
+    // PROTECCIÓN DE PANTALLA MIENTRAS CARGA LA DB
+    if (_cargandoDatos) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Cargando terminal de venta...', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
       appBar: AppBar(
         toolbarHeight: 80,
         title: Image.asset(
           'assets/banner.png', 
-          height: 80, // Limitamos la altura para que no desborde la barra superior
+          height: 80, 
           fit: BoxFit.contain, 
         ),
         actions: [
@@ -735,7 +773,6 @@ return Scaffold(
                           color: Theme.of(context).colorScheme.secondary,
                         ),
                       ),
-                      // Agrupamos el Chip y el nuevo botón en un Row
                       Row(
                         children: [
                           if (_tipoPedido != null)
@@ -753,7 +790,6 @@ return Scaffold(
                           
                           const SizedBox(width: 16),
                           
-                          // Botón de Anular Venta
                           if (_carrito.isNotEmpty || _clienteSeleccionado != null)
                             TextButton.icon(
                               style: TextButton.styleFrom(
@@ -890,320 +926,28 @@ return Scaffold(
             ),
           ),
 
-          // LADO DERECHO: Panel de Control
-          Container(
-            width: 320, 
-            color: Colors.grey[100],
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_clienteSeleccionado == null) ...[
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      foregroundColor: AppTheme.businessColor,
-                      side: const BorderSide(color: AppTheme.businessColor),
-                    ),
-                    onPressed: _abrirBuscadorMayoristas,
-                    icon: const Icon(Icons.business),
-                    label: const Text('Asignar Venta Mayorista', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                ] else ...[
-                  Card(
-                    color: Theme.of(context).colorScheme.secondary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.verified, color: AppTheme.warningColor, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('CLIENTE EMPRESA', style: TextStyle(color: AppTheme.warningColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                                ],
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _clienteSeleccionado = null;
-                                    if (_tipoPedido == 'despacho') _tipoPedido = null;
-                                  });
-                                },
-                                child:  Icon(Icons.close,color: Theme.of(context).colorScheme.onSecondary.withOpacity(0.7), size: 20),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            _clienteSeleccionado!['nombre'],
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          const SizedBox(height: 4),
-                          Text('RUT: ${_clienteSeleccionado!['rut']}', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary.withOpacity(0.7))),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-                
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: AppTheme.warningColor,
-                    side: const BorderSide(color: AppTheme.warningColor),
-                  ),
-                  onPressed: _configurarPedido,
-                  icon: const Icon(Icons.inventory_2),
-                  label: const Text('Programar Pedido', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: _carrito.isEmpty ? null : _intentarCobrarBoleta, 
-                  icon: const Icon(Icons.receipt, size: 28),
-                  label: const Text('COBRAR BOLETA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(height: 12),
-
-                (_carrito.isNotEmpty && _clienteSeleccionado != null)
-                    ? ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 24), 
-                          backgroundColor: AppTheme.highlightColor, 
-                          foregroundColor: Colors.white,
-                          elevation: 6, 
-                          shadowColor: AppTheme.highlightColor.withOpacity(0.5),
-                        ),
-                        onPressed: () => _procesarPago(true), 
-                        icon: const Icon(Icons.receipt_long, size: 28),
-                        label: const Text('EMITIR FACTURA', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      )
-                    : OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          foregroundColor: Colors.grey, 
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        onPressed: null, 
-                        icon: const Icon(Icons.receipt_long),
-                        label: const Text('EMITIR FACTURA', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: AppTheme.infoColor,
-                    side: const BorderSide(color: AppTheme.infoColor),
-                  ),
-                  onPressed: _procesarValeInterno,
-                  icon: const Icon(Icons.assignment), // Ícono de documento interno
-                  label: const Text('VENTA MANUAL', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: Theme.of(context).colorScheme.secondary,
-                  ),
-                  onPressed:_mostrarDetalleVentas,
-                  icon: const Icon(Icons.assessment),
-                  label: const Text('Detalle Venta del Día'),
-                ),
-                
-                const Spacer(), 
-
-                // TARJETA DE INFORMACIÓN DEL CAJERO
-                if (_cajeroActual != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Theme.of(context).colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              radius: 20,
-                              // Inicial del nombre
-                              child: Text(_cajeroActual!.nombre[0], style: const TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _cajeroActual!.nombre,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'RUT: ${_cajeroActual!.rut}',
-                                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Tiempo de turno:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            Text(
-                              _tiempoTranscurrido,
-                              style: TextStyle(
-                                fontSize: 14, 
-                                fontWeight: FontWeight.bold, 
-                                color: Theme.of(context).colorScheme.primary,
-                                fontFamily: 'monospace', // Para que los números no salten
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    foregroundColor: AppTheme.errorColor,
-                    side: const BorderSide(color: AppTheme.errorColor),
-                  ),
-                  onPressed: _cerrarCaja,
-                  icon: const Icon(Icons.lock_clock),
-                  label: const Text('Cierre de Caja', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
+          PanelControlCajero(
+            clienteSeleccionado: _clienteSeleccionado,
+            tipoPedido: _tipoPedido,
+            carritoVacio: _carrito.isEmpty,
+            cajeroActual: _cajeroActual,
+            tiempoTranscurrido: _tiempoTranscurrido,
+            onAsignarMayorista: _abrirBuscadorMayoristas,
+            onConfigurarPedido: _configurarPedido,
+            onCobrarBoleta: _intentarCobrarBoleta,
+            onEmitirFactura: () => _procesarPago(true),
+            onEmitirValeInterno: _procesarValeInterno,
+            onVerDetalleVenta: _mostrarDetalleVentas,
+            onCierreCaja: _cerrarCaja,
+            onQuitarCliente: () {
+              setState(() {
+                _clienteSeleccionado = null;
+                if (_tipoPedido == 'despacho') _tipoPedido = null;
+              });
+            },
           ),
         ],
       ),
-    );
-  }
-}
-
-// WIDGETS DE BÚSQUEDA
-
-class _BuscadorProductosDialog extends StatefulWidget {
-  final List<Map<String, dynamic>> productos;
-  const _BuscadorProductosDialog({required this.productos});
-  @override
-  State<_BuscadorProductosDialog> createState() => _BuscadorProductosDialogState();
-}
-
-class _BuscadorProductosDialogState extends State<_BuscadorProductosDialog> {
-  String _filtro = '';
-  @override
-  Widget build(BuildContext context) {
-    final productosFiltrados = widget.productos.where((p) => p['nombre'].toString().toLowerCase().contains(_filtro.toLowerCase())).toList();
-    return AlertDialog(
-      title: Text('Buscar Producto', style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold)),
-      content: SizedBox(
-        width: 500, height: 400,
-        child: Column(
-          children: [
-            TextField(
-              decoration: InputDecoration(labelText: 'Escribe el nombre del producto...', prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.primary)),
-              onChanged: (valor) => setState(() => _filtro = valor),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: productosFiltrados.length,
-                itemBuilder: (context, index) {
-                  final prod = productosFiltrados[index];
-                  final bool sinStock = prod['stock'] == 0;
-                  return ListTile(
-                    title: Text(prod['nombre']),
-                    subtitle: Text('SKU: ${prod['sku']} | Precio: \$${prod['precio']}'),
-                    trailing: Text('Stock: ${prod['stock']}', style: TextStyle(color: sinStock ? AppTheme.errorColor : AppTheme.successColor, fontWeight: FontWeight.bold)),
-                    enabled: !sinStock, 
-                    onTap: () => Navigator.pop(context, prod),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, null), child: Text('Cerrar', style: TextStyle(color: Theme.of(context).colorScheme.secondary)))],
-    );
-  }
-}
-
-class _BuscadorClientesDialog extends StatefulWidget {
-  final List<Map<String, dynamic>> clientes;
-  const _BuscadorClientesDialog({required this.clientes});
-  @override
-  State<_BuscadorClientesDialog> createState() => _BuscadorClientesDialogState();
-}
-
-class _BuscadorClientesDialogState extends State<_BuscadorClientesDialog> {
-  String _filtro = '';
-  @override
-  Widget build(BuildContext context) {
-    final clientesFiltrados = widget.clientes.where((c) => c['nombre'].toString().toLowerCase().contains(_filtro.toLowerCase()) || c['rut'].toString().toLowerCase().contains(_filtro.toLowerCase())).toList();
-    return AlertDialog(
-      title: Text('Asignar Cliente Mayorista', style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold)),
-      content: SizedBox(
-        width: 600, height: 400,
-        child: Column(
-          children: [
-            TextField(
-              decoration: InputDecoration(labelText: 'Buscar por Nombre o RUT...', prefixIcon: Icon(Icons.business, color: Theme.of(context).colorScheme.primary)),
-              onChanged: (valor) => setState(() => _filtro = valor),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: clientesFiltrados.length,
-                itemBuilder: (context, index) {
-                  final cliente = clientesFiltrados[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2), child: Icon(Icons.domain, color: Theme.of(context).colorScheme.primary)),
-                      title: Text(cliente['nombre'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('RUT: ${cliente['rut']} | Giro: ${cliente['giro']}'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () => Navigator.pop(context, cliente),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, null), child: Text('Cancelar', style: TextStyle(color: Theme.of(context).colorScheme.secondary)))],
     );
   }
 }

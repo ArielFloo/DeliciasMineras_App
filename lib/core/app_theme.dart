@@ -18,6 +18,16 @@ class AppTheme {
   static const highlightColor = Color(0xFF3F51B5); 
   static const businessColor = Color(0xFF00796B);  
 
+  // ==========================================
+  // COLORES DASHBOARD ADMINISTRADOR
+  // ==========================================
+  static const adminSidebar = Color(0xFF343A40);     // Gris oscuro del menú lateral
+  static const adminBackground = Color(0xFFF4F6F9);  // Gris muy claro para el fondo
+  static const adminCardInfo = Color(0xFF17A2B8);    // Teal (Productos)
+  static const adminCardSuccess = Color(0xFF28A745); // Verde (Compras)
+  static const adminCardWarning = Color(0xFFFFC107); // Amarillo (Ventas)
+  static const adminCardDanger = Color(0xFFDC3545);  // Rojo (Alertas/Stock)
+
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,

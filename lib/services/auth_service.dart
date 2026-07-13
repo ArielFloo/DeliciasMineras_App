@@ -72,21 +72,21 @@ class AuthService {
   final List<Empleado> _usuariosDB = [
     Cajero(
       id: 'EMP-001',
-      rut: '21936615-9',
+      rut: '21.936.615-9',
       nombre: 'Kurt Koserak',
       password: '123',
       idLocal: 1, // Local de Coronel
     ),
     Repartidor(
       id: 'EMP-002',
-      rut: '22222222-2',
+      rut: '22.222.222-2',
       nombre: 'Roberto Repartidor',
       password: '123',
       patenteVehiculoAsignado: 'AB-CD-12',
     ),
     Administrador(
       id: 'EMP-003',
-      rut: '33333333-3',
+      rut: '33.333.333-3',
       nombre: 'Ana Admin',
       password: '123',
       nivelAcceso: 5,
