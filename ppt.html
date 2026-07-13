@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentación Final - Proyecto de Bases de Datos</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/theme/dracula.min.css">
+
+    <style>
+        .loader-wrapper {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #17031f; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .loader-logo {
+            width: 150px;
+            height: auto;
+            animation: pulso 1.5s infinite ease-in-out; 
+        }
+
+        @keyframes pulso {0%, 100% {transform: scale(0.85);} 50% {transform: scale(1.15);}}
+
+        .content {
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loader-wrapper">
+        <img src="assets/logo.png" alt="Cargando..." class="loader-logo">
+    </div>
+
+    <div class="reveal"> 
+        <div class="slides">
+            
+            <section>
+                <h1>Proyecto Final de Bases de Datos</h1>
+                <p>Presentación y Demostración del Sistema Concluido</p>
+                <p style="font-size: 0.6em; color: #a0a0a0;">Integrantes visibles en cámara | 2026</p>
+            </section>
+
+            <section>
+                <section>
+                    <h2>1. Introducción y Motivación</h2>
+                    <p>Definición del problema y justificación del desarrollo del sistema.</p>
+                </section>
+                <section>
+                    <h2>Valor y Beneficio Global</h2>
+                    <ul>
+                        <li><strong>Para los Usuarios:</strong> Explicación clara de la optimización del flujo de trabajo y accesibilidad a la información.</li>
+                        <li><strong>Para los Clientes:</strong> Retorno de inversión, escalabilidad y consistencia en la persistencia de sus datos.</li>
+                    </ul>
+                </section>
+            </section>
+
+            <section>
+                <section>
+                    <h2>2. Modelo Entidad-Relación</h2>
+                    <p>Esquema Conceptual Completo</p>
+                </section>
+                <section>
+                    <h2>Restricciones y Supuestos</h2>
+                    <p>Aspectos clave del negocio que no se modelan directamente de forma gráfica:</p>
+                    <ul>
+                        <li>Reglas de exclusión mutua de entidades.</li>
+                        <li>Supuestos de cardinalidad máxima estricta dependientes del tiempo.</li>
+                    </ul>
+                </section>
+            </section>
+
+            <section>
+                <section>
+                    <h2>3. Esquema Relacional</h2>
+                    <p>Estructura normalizada en <strong>Cuarta Forma Normal (4FN)</strong>.</p>
+                </section>
+                <section>
+                    <h2>Cumplimiento de Integridad</h2>
+                    <ul>
+                        <li>Implementación de restricciones de integridad (Llaves Primarias, Foráneas, Checks).</li>
+                        <li>Análisis de dependencias multivaluadas para garantizar 4FN.</li>
+                    </ul>
+                </section>
+                <section>
+                    <h2>DDL: Creación de la BD</h2>
+                    <pre><code class="language-sql" data-trim>
+CREATE TABLE Ejemplo (
+    id_ejemplo SERIAL PRIMARY KEY,
+    atributo VARCHAR(100) NOT NULL,
+    CONSTRAINT chk_atributo CHECK (atributo != '')
+);
+                    </code></pre>
+                </section>
+            </section>
+
+            <section>
+                <section>
+                    <h2>4. Demostración del Sistema</h2>
+                    <p>Interfaz desarrollada Ad-Hoc y manipulación de datos en tiempo real.</p>
+                </section>
+                <section>
+                    <h2>Transacciones No Triviales</h2>
+                    <ul>
+                        <li><strong>Ingresos Complejos:</strong> Inserción con triggers asociados.</li>
+                        <li><strong>Actualizaciones y Eliminaciones cascada:</strong> Evidencia inmediata del impacto directo en la base de datos PostgreSQL.</li>
+                    </ul>
+                </section>
+                <section>
+                    <h2>Consultas Funcionales (PostgreSQL)</h2>
+                    <p>Ejecución de las consultas SQL estipuladas en los requerimientos del sistema con salidas reales en consola/interfaz.</p>
+                </section>
+            </section>
+
+            <section>
+                <h2>5. Interrogación Técnica</h2>
+                <p>Demostración práctica en vivo con ejemplos directos sobre la Base de Datos.</p>
+                <a href="http://localhost:59344/">Delicias Mineras</a>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.js"></script>
+    
+    <script>
+        Reveal.initialize({
+            hash: true,
+            respondToHashChanges: true
+        });
+
+        window.addEventListener("load", () => {
+            const loader = document.querySelector(".loader-wrapper");
+            setTimeout(() => {
+                loader.style.opacity = "0";
+                loader.style.visibility = "hidden";
+            }, 2000); 
+        });
+    </script>
+
+</body>
+</html>
