@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/app_theme.dart';
+import '../data/mock_database.dart'; // NUEVA IMPORTACIÓN
 
 class PanelInventarioAdmin extends StatefulWidget {
   const PanelInventarioAdmin({super.key});
@@ -9,17 +10,33 @@ class PanelInventarioAdmin extends StatefulWidget {
 }
 
 class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
-  // Simulación de la base de datos de productos en el administrador
-  final List<Map<String, dynamic>> _productos = [
-    {'sku': 1, 'nombre': 'Pan de Molde Integral', 'precio': 2500, 'stock': 2, 'categoria': 'Panadería'},
-    {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 20, 'categoria': 'Pastelería'}, 
-    {'sku': 3, 'nombre': 'Kuchen de Manzana', 'precio': 8500, 'stock': 13, 'categoria': 'Pastelería'},
-    {'sku': 4, 'nombre': 'Baguette', 'precio': 1200, 'stock': 10, 'categoria': 'Panadería'},
-    {'sku': 5, 'nombre': 'Donas Glaseadas', 'precio': 1000, 'stock': 0, 'categoria': 'Pastelería'}, 
-  ];
+  // Ahora la lista arranca vacía
+  List<Map<String, dynamic>> _productos = [];
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarInventario();
+  }
+
+  // Función que va a la base de datos a buscar el stock actual
+  Future<void> _cargarInventario() async {
+    setState(() => _cargando = true);
+    try {
+      final datos = await MockDatabase.instancia.obtenerProductos();
+      if (mounted) {
+        setState(() {
+          _productos = datos;
+          _cargando = false;
+        });
+      }
+    } catch (e) {
+      print("Error cargando inventario: $e");
+    }
+  }
 
   void _editarProducto(Map<String, dynamic> producto) {
-    // Aquí puedes abrir un diálogo en el futuro para editar precio o stock
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Editar: ${producto['nombre']} (Próximamente)')),
     );
@@ -29,10 +46,22 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    if (_cargando) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Cargando inventario desde la base de datos...'),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Cabecera con botón de agregar producto nuevo
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -44,22 +73,31 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                 color: colorScheme.secondary,
               ),
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.successColor,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                // Lógica futura para añadir un nuevo SKU
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Nuevo Producto', style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                // Agregamos un botón para refrescar la tabla manualmente
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  color: colorScheme.primary,
+                  onPressed: _cargarInventario,
+                  tooltip: 'Actualizar Stock',
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.successColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nuevo Producto', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 24),
 
-        // Tabla de Productos
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -82,7 +120,6 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                 rows: _productos.map((prod) {
                   final int stock = prod['stock'];
                   
-                  // Definimos etiquetas dinámicas de stock usando tus colores semánticos
                   Color estadoColor;
                   String estadoTexto;
                   if (stock == 0) {
@@ -102,7 +139,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                       DataCell(Text(prod['nombre'], style: const TextStyle(fontWeight: FontWeight.w600))),
                       DataCell(Text(prod['categoria'])),
                       DataCell(Text('\$${prod['precio']}')),
-                      DataCell(Text('$stock uds')),
+                      DataCell(Text('$stock uds', style: const TextStyle(fontWeight: FontWeight.bold))),
                       DataCell(
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

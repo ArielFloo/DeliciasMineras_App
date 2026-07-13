@@ -21,7 +21,15 @@ class MockDatabase {
     {'rut': '78956253-6', 'nombre': 'Becerra, Garrido y Olivares Ltda.', 'giro': 'Distribución'},
   ];
 
-  final List<Map<String, dynamic>> _ventas = [];
+// Lista de ventas con algo de historia falsa
+  final List<Map<String, dynamic>> _ventas = [
+    {'hora': DateTime.now().subtract(const Duration(days: 4)), 'documento': 'Boleta', 'metodo': 'Efectivo', 'total': 15000},
+    {'hora': DateTime.now().subtract(const Duration(days: 3)), 'documento': 'Factura', 'metodo': 'Transferencia', 'total': 45000},
+    {'hora': DateTime.now().subtract(const Duration(days: 2)), 'documento': 'Boleta', 'metodo': 'Efectivo', 'total': 22500},
+    {'hora': DateTime.now().subtract(const Duration(days: 1)), 'documento': 'Boleta', 'metodo': 'Debito', 'total': 18000},
+    {'hora': DateTime.now().subtract(const Duration(days: 1)), 'documento': 'Factura', 'metodo': 'Credito', 'total': 50000},
+  ];
+
   final List<Map<String, dynamic>> _valesInternos = [];
 
   // Simulador de latencia de red (Medio segundo)

@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 import '../widgets/tarjeta_metrica_admin.dart';
 import '../core/app_theme.dart';
 import '../widgets/grafico_ventas_barras.dart';
-import '../widgets/panel_inventario.dart'; // Corregí el nombre del import según lo creamos
+import '../widgets/panel_inventario_admin.dart';
+import '../data/mock_database.dart';
+import '../utils/app_formatters.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -14,6 +16,60 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _indiceSeleccionado = 0;
+  
+  // VARIABLES DE ESTADO PARA LOS INDICADORES
+  bool _cargandoMetricas = true;
+  int _totalProductos = 0;
+  int _ingresosTotales = 0;
+  int _productosPocoStock = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarMetricas();
+  }
+
+  // Función para calcular los KPIs desde la base de datos
+  Future<void> _cargarMetricas() async {
+    setState(() => _cargandoMetricas = true);
+    
+    try {
+      final productos = await MockDatabase.instancia.obtenerProductos();
+      final ventas = await MockDatabase.instancia.obtenerVentasDelDia();
+
+      int ingresosCalculados = 0;
+      final hoy = DateTime.now(); // Capturamos la fecha actual
+
+      for (var venta in ventas) {
+        DateTime fechaVenta = venta['hora'];
+        
+        // ¡LA MAGIA AQUÍ! Solo sumamos la venta si el año, mes y día coinciden con HOY
+        if (fechaVenta.year == hoy.year && 
+            fechaVenta.month == hoy.month && 
+            fechaVenta.day == hoy.day) {
+          ingresosCalculados += venta['total'] as int;
+        }
+      }
+
+      int stockCriticoCalculado = 0;
+      for (var prod in productos) {
+        if ((prod['stock'] as int) <= 5) {
+          stockCriticoCalculado++;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _totalProductos = productos.length;
+          _ingresosTotales = ingresosCalculados;
+          _productosPocoStock = stockCriticoCalculado;
+          _cargandoMetricas = false;
+        });
+      }
+    } catch (e) {
+      print("Error cargando métricas: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +104,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   titulo: 'Tablero Principal',
                   icono: Icons.dashboard,
                   estaActivo: _indiceSeleccionado == 0,
-                  onTap: () => setState(() => _indiceSeleccionado = 0),
+                  onTap: () {
+                    setState(() => _indiceSeleccionado = 0);
+                    _cargarMetricas(); // Refresca al volver al inicio
+                  },
                 ),
                 _ItemMenuLateral(
                   titulo: 'Productos',
@@ -90,12 +149,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Tablero Principal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      Text('Inicio / Tablero Principal', style: TextStyle(color: AppTheme.infoColor)),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            color: AppTheme.primaryColor,
+                            tooltip: 'Actualizar Métricas',
+                            onPressed: _cargarMetricas,
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Inicio / Tablero Principal', style: TextStyle(color: AppTheme.infoColor)),
+                        ],
+                      ),
                     ],
                   ),
                 ),
                 
-                // Contenido dinámico según la pestaña seleccionada
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
@@ -103,30 +172,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       index: _indiceSeleccionado,
                       children: [
                         // PESTAÑA 0: TABLERO PRINCIPAL
-                        Column(
+                        _cargandoMetricas 
+                        ? const Center(child: CircularProgressIndicator())
+                        : Column(
                           children: [
-                            // FILA DE TARJETAS (Métricas)
+                            // FILA DE TARJETAS (Métricas Reales)
                             Row(
                               children: [
                                 TarjetaMetricaAdmin(
                                   titulo: 'Productos Registrados', 
-                                  valor: '102', 
+                                  valor: '$_totalProductos', 
                                   color: AppTheme.adminCardInfo,
                                   icono: Icons.inventory_2_outlined,
-                                  onMasInfo: () => setState(() => _indiceSeleccionado = 1), // Te manda a inventario
+                                  onMasInfo: () => setState(() => _indiceSeleccionado = 1),
                                 ),
                                 const SizedBox(width: 16),
                                 TarjetaMetricaAdmin(
                                   titulo: 'Total Compras', 
-                                  valor: '\$3,889', 
+                                  valor: '\$0', // Se implementará cuando haya modulo de proveedores
                                   color: AppTheme.adminCardSuccess,
                                   icono: Icons.shopping_cart_checkout,
                                   onMasInfo: () {},
                                 ),
                                 const SizedBox(width: 16),
                                 TarjetaMetricaAdmin(
-                                  titulo: 'Total Ventas', 
-                                  valor: '\$238.25', 
+                                  titulo: 'Ingresos del Día', 
+                                  valor: '\$${AppFormatters.formatearDinero(_ingresosTotales)}',
                                   color: AppTheme.adminCardWarning,
                                   icono: Icons.attach_money,
                                   onMasInfo: () {},
@@ -134,7 +205,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 const SizedBox(width: 16),
                                 TarjetaMetricaAdmin(
                                   titulo: 'Poco Stock', 
-                                  valor: '1', 
+                                  valor: '$_productosPocoStock', 
                                   color: AppTheme.adminCardDanger,
                                   icono: Icons.warning_amber_rounded,
                                   onMasInfo: () => setState(() => _indiceSeleccionado = 1),
@@ -143,39 +214,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                             const SizedBox(height: 24),
                             // ZONA DEL GRÁFICO CENTRAL
-                            Expanded(
-                              child: Container(
+                            const Expanded(
+                              child: SizedBox(
                                 width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: const BoxDecoration(
-                                        color: AppTheme.adminCardInfo,
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                                      ),
-                                      child: const Row(
-                                        children: [
-                                          Icon(Icons.bar_chart, color: Colors.white),
-                                          SizedBox(width: 8),
-                                          Text('Ventas del Mes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                        ],
-                                      ),
-                                    ),
-                                    const Expanded(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(top: 24, right: 24, left: 12, bottom: 12),
-                                        child: GraficoVentasBarras(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                child: GraficoVentasBarras(),
                               ),
                             ),
                           ],
@@ -184,7 +226,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         // PESTAÑA 1: PANEL DE INVENTARIO
                         const PanelInventarioAdmin(),
 
-                        // PESTAÑA 2: VENTAS (Marcador de posición)
+                        // PESTAÑA 2: VENTAS 
                         const Center(child: Text('Historial de Documentos Emitidos (Próximamente)')),
                       ],
                     ),
@@ -199,7 +241,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 }
 
-// Pequeño widget interno para los botones del menú lateral
 class _ItemMenuLateral extends StatelessWidget {
   final String titulo;
   final IconData icono;
