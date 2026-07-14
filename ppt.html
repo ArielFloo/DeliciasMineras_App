@@ -35,6 +35,19 @@
             padding: 20px;
             font-family: Arial, sans-serif;
         }
+        .fullscreen {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            padding: 10px 15px;
+            background: #fff;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-family: sans-serif;
+        }
     </style>
 </head>
 <body>
@@ -43,13 +56,36 @@
         <img src="assets/logo.png" alt="Cargando..." class="loader-logo">
     </div>
 
+
+
     <div class="reveal"> 
+        <button class="fullscreen" onclick="toggleFullscreen()">[ ]</button>
         <div class="slides">
-            
             <section>
-                <h1>Proyecto Final de Bases de Datos</h1>
-                <p>Presentación y Demostración del Sistema Concluido</p>
-                <p style="font-size: 0.6em; color: #a0a0a0;">Integrantes visibles en cámara | 2026</p>
+                <section>
+                <h1>Hito Final: Bases de Datos</h1>
+                <p>Grupo 7</p>
+                <p style="font-size: 0.6em; color: #a0a0a0;"> 501306-1 | 2026</p>
+                </section>
+                <section>
+                    <h2>Delicias Mineras</h2>
+                    <div style="display: flex; justify-content: space-around; font-family: sans-serif; line-height: 1.6;">
+                        <div>
+                            <p><strong>Integrantes</strong></p>
+                            <p>Ariel Fernandez Fuentealba</p>
+                            <p>Kurt Koserak Ortiz</p>
+                            <p>Benjamin Lopez Hermosilla</p>
+                            <p>Gonzalo Quilodrán Neira</p>
+                            <p>Ignacio Soto Miranda</p>
+                        </div>
+                        <div>
+                            <p><strong>Profesora y Ayudantes</strong></p>
+                            <p>Marcela Varas</p>
+                            <p>Manuel Nuñez</p>
+                            <p>Javier Campos</p>
+                        </div>
+                    </div>
+                </section>
             </section>
 
             <section>
@@ -69,41 +105,307 @@
             <section>
                 <section>
                     <h2>2. Modelo Entidad-Relación</h2>
-                    <p>Esquema Conceptual Completo</p>
                 </section>
                 <section>
-                    <h2>Restricciones y Supuestos</h2>
-                    <p>Aspectos clave del negocio que no se modelan directamente de forma gráfica:</p>
-                    <ul>
-                        <li>Reglas de exclusión mutua de entidades.</li>
-                        <li>Supuestos de cardinalidad máxima estricta dependientes del tiempo.</li>
+                    <iframe frameborder="0" style="width:100%;height:500px;" src="https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=1&title=Dia_panaderia_bdd&dark=auto#Uhttps%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D1sJcOmO6LjGRziQkgCwjcMVBpxGDMbEjv%26export%3Ddownload"></iframe>
+                </section>
+                <section>
+                    <h2>Supuestos</h2>
+                    <ul style="text-align: left; line-height: 1.4; font-size: 0.8em;">
+                        <li>El transporte solo se encuentra una cantidad finita de tiempo en un local después pasa a otro. </li>
+                        <li>Un cliente es persona o empresa, pero no ambos, la persona que represente a una empresa se representara como empresa.</li>
+                        <li>La empresa siempre es un cliente mayorista. </li>
+                        <li>Un empleado puede trabajar en un solo local. </li>
+                        <li>Cada envío corresponde a un pedido ya registrado. </li>
+                    </ul>
+                </section>
+                <section>
+                    <h2>restricciones no Modelables</h2>
+                    <ul style="text-align: left; line-height: 1.4; font-size: 0.8em;">
+                        <li>El stock es no negativo, no se puede vender un producto sin existencias.</li>
+                        <li>El sistema maneja perdidas, robos y mermas como disminución del stock manual.</li>
+                        <li>No permite cantidades negativas en pedido, envíos, clientes como cantidades estrictamente no negativas.</li>
+                        <li> La fecha de entrega debe ser mayor o igual a la fecha del pedido.</li>
+                        <li>No todas las boletas poseen un envio asociado, ya que el envio es solo para los Clientes tipo Empresa.</li>
                     </ul>
                 </section>
             </section>
 
             <section>
                 <section>
-                    <h2>3. Esquema Relacional</h2>
-                    <p>Estructura normalizada en <strong>Cuarta Forma Normal (4FN)</strong>.</p>
-                </section>
-                <section>
-                    <h2>Cumplimiento de Integridad</h2>
-                    <ul>
-                        <li>Implementación de restricciones de integridad (Llaves Primarias, Foráneas, Checks).</li>
-                        <li>Análisis de dependencias multivaluadas para garantizar 4FN.</li>
+                    <h2>Modelo Relacional</h2>
+                    <p style="font-size: 0.8em; color: #888;">Parte 1: Ventas y Productos</p>
+                    
+                    <ul style="text-align: left; font-size: 0.75em; line-height: 1.4;">
+                        <li><strong>Compra</strong>(<u><strong>idCompra</strong></u>, rutCliente, idCajero, metodoPago)
+                            <ul>
+                                <li>FK: rutCliente &rarr; Cliente</li>
+                                <li>FK: idCajero &rarr; Empleado</li>
+                                <li>rutCliente, idCajero not null</li>
+                            </ul>
+                        </li>
+                        <br>
+                        <li><strong>Producto</strong>(<u><strong>SKU</strong></u>, categoria, nombreProducto, precio)</li>
+                        <br>
+                        <li><strong>BoletaCompra</strong>(idCompra, SKU, cantidad, lugar, diaCompra, mesCompra, añoCompra)
+                            <ul>
+                                <li>FK: SKU &rarr; Producto</li>
+                                <li>FK: idCompra &rarr; Compra</li>
+                                <li>idCompra, SKU not null</li>
+                            </ul>
+                        </li>
                     </ul>
                 </section>
+
                 <section>
-                    <h2>DDL: Creación de la BD</h2>
-                    <pre><code class="language-sql" data-trim>
-CREATE TABLE Ejemplo (
-    id_ejemplo SERIAL PRIMARY KEY,
-    atributo VARCHAR(100) NOT NULL,
-    CONSTRAINT chk_atributo CHECK (atributo != '')
-);
-                    </code></pre>
+                    <h2>Modelo Relacional</h2>
+                    <p style="font-size: 0.8em; color: #888;">Parte 2: Distribución y Clientes</p>
+                    
+                    <ul style="text-align: left; font-size: 0.7em; line-height: 1.3;">
+                        <li><strong>Local</strong>(<u><strong>idLocal</strong></u>, ciudadLocal, calleLocal, numeroLocal)</li>
+                        <br>
+                        <li><strong>Ofrece</strong>(idLocal, SKU, stock)
+                            <ul>
+                                <li>FK: idLocal &rarr; Local</li>
+                                <li>FK: SKU &rarr; Producto</li>
+                                <li>idLocal, SKU not null</li>
+                            </ul>
+                        </li>
+                        <br>
+                        <li><strong>Cliente</strong>(<u><strong>rut</strong></u>, nombreCliente, tipoCliente)
+                            <ul>
+                                <li><strong>Persona</strong>(<u><strong>rut</strong></u>)
+                                    <ul>
+                                        <li>FK: rut &rarr; Cliente</li>
+                                        <li>rut not null</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Empresa</strong>(<u><strong>rut</strong></u>, correoCliente, razonSocial)
+                                    <ul>
+                                        <li>FK: rut &rarr; Cliente</li>
+                                        <li>rut not null</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h2>Modelo Relacional</h2>
+                    <p style="font-size: 0.8em; color: #888;">Parte 3: Logística y Personal</p>
+                    
+                    <ul style="text-align: left; font-size: 0.7em; line-height: 1.3;">
+                        <li><strong>Envio</strong>(<u><strong>idEnvio</strong></u>, rutCliente, idRepartidor, horaEstimada, direccionEnvio, precioEnvio)
+                            <ul>
+                                <li>FK: rutCliente &rarr; Cliente</li>
+                                <li>FK: idRepartidor &rarr; Empleado</li>
+                                <li>rutCliente, idRepartidor not null</li>
+                            </ul>
+                        </li>
+                        <br>
+                        <li><strong>Empleado</strong>(<u><strong>idEmpleado</strong></u>, nombreEmpleado, correoEmpleado, tipoEmpleado)
+                            <ul>
+                                <li><strong>Cajero</strong>(<u><strong>idEmpleado</strong></u>)
+                                    <ul>
+                                        <li>FK: idEmpleado &rarr; Empleado</li>
+                                        <li>idEmpleado not null</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Repartidor</strong>(<u><strong>idEmpleado</strong></u>)
+                                    <ul>
+                                        <li>FK: idEmpleado &rarr; Empleado</li>
+                                        <li>idEmpleado not null</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                        </section>
+                        <section>
+                            <h2>Modelo Relacional</h2>
+                            <p style="font-size: 0.8em; color: #888;">Parte 3: Logística y Personal</p>
+                            <ul style="text-align: left; font-size: 0.7em; line-height: 1.3;">
+                            <li><strong>Vehiculo</strong>(<u><strong>patente</strong></u>, disponibilidad, tipoVehiculo)</li>
+                            <br>
+                            <li><strong>Conduce</strong>(idRepartidor, patente)
+                                <ul>
+                                    <li>FK: idRepartidor &rarr; Empleado</li>
+                                    <li>FK: patente &rarr; Vehiculo</li>
+                                    <li>idRepartidor, patente not null</li>
+                                </ul>
+                            </li>
+                        </ul>
+                </section>
+                <!--DDL----------------------------------------------------------------------------------------------->
+               <section>
+                    <h3 style="margin-bottom: 15px;">DDL: Módulo Clientes</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; font-size: 0.42em; text-align: left; font-family: monospace;">
+                        
+                        <div style="border: 2px solid #569cd6; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Cliente</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Cliente(<br>
+                            &nbsp;&nbsp;rut <span style="color: #4fc1ff;">VARCHAR(10)</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;nombreCliente <span style="color: #4fc1ff;">VARCHAR(100)</span>,<br>
+                            &nbsp;&nbsp;tipoCliente <span style="color: #4fc1ff;">VARCHAR(30)</span><br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #569cd6; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Persona</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Persona(<br>
+                            &nbsp;&nbsp;rut <span style="color: #4fc1ff;">VARCHAR(10)</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (rut) <span style="color: #c586c0;">REFERENCES</span> Cliente(rut)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #569cd6; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Empresa</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Empresa(<br>
+                            &nbsp;&nbsp;rut <span style="color: #4fc1ff;">VARCHAR(10)</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;correoCliente <span style="color: #4fc1ff;">TEXT</span>,<br>
+                            &nbsp;&nbsp;razonSocial <span style="color: #4fc1ff;">VARCHAR(100)</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (rut) <span style="color: #c586c0;">REFERENCES</span> Cliente(rut)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #d19a66; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; text-align: center; font-family: sans-serif;">
+                            <p style="margin: 0; color: #abb2bf; font-style: italic;">Definición de tablas<br>para Clientes (Herencia)</p>
+                        </div>
+
+                    </div>
+                </section>
+                <section>
+                    <h3 style="margin-bottom: 15px;">DDL: Módulo Empleados</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; font-size: 0.42em; text-align: left; font-family: monospace;">
+                        
+                        <div style="border: 2px solid #c678dd; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Empleado</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Empleado(<br>
+                            &nbsp;&nbsp;idEmpleado <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;nombreEmpleado <span style="color: #4fc1ff;">VARCHAR(100)</span>,<br>
+                            &nbsp;&nbsp;correoEmpleado <span style="color: #4fc1ff;">VARCHAR(50)</span>,<br>
+                            &nbsp;&nbsp;tipoEmpleado <span style="color: #4fc1ff;">VARCHAR(30)</span><br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #c678dd; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Cajero</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Cajero(<br>
+                            &nbsp;&nbsp;idEmpleado <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idEmpleado) <span style="color: #c586c0;">REFERENCES</span> Empleado(idEmpleado)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #c678dd; padding: 12px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Repartidor</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Repartidor(<br>
+                            &nbsp;&nbsp;idEmpleado <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idEmpleado) <span style="color: #c586c0;">REFERENCES</span> Empleado(idEmpleado)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #d19a66; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; text-align: center; font-family: sans-serif;">
+                            <p style="margin: 0; color: #abb2bf; font-style: italic;">Definición de personal<br>y roles del negocio</p>
+                        </div>
+
+                    </div>
+                </section>
+                <section>
+                    <h3 style="margin-bottom: 15px;">DDL: Ventas y Productos</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 0.38em; text-align: left; font-family: monospace;">
+                        
+                        <div style="border: 2px solid #e5c07b; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Producto</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Producto(<br>
+                            &nbsp;&nbsp;SKU <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;categoria <span style="color: #4fc1ff;">TEXT</span>,<br>
+                            &nbsp;&nbsp;nombreProducto <span style="color: #4fc1ff;">TEXT</span>,<br>
+                            &nbsp;&nbsp;precio <span style="color: #4fc1ff;">INTEGER</span><br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #e5c07b; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Compra</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Compra(<br>
+                            &nbsp;&nbsp;idCompra <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;rutCliente <span style="color: #4fc1ff;">VARCHAR(10)</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;idCajero <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;metodoPago <span style="color: #4fc1ff;">VARCHAR(20)</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (rutCliente) <span style="color: #c586c0;">REFERENCES</span> Cliente(rut),<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idCajero) <span style="color: #c586c0;">REFERENCES</span> Empleado(idEmpleado)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #e5c07b; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla BoletaCompra</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> BoletaCompra(<br>
+                            &nbsp;&nbsp;idCompra <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;SKU <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;cantidad <span style="color: #4fc1ff;">INTEGER</span>,<br>
+                            &nbsp;&nbsp;lugar <span style="color: #4fc1ff;">VARCHAR(30)</span>,<br>
+                            &nbsp;&nbsp;diaCompra <span style="color: #4fc1ff;">INTEGER</span>, mesCompra <span style="color: #4fc1ff;">INTEGER</span>, anoCompra <span style="color: #4fc1ff;">INTEGER</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idCompra) <span style="color: #c586c0;">REFERENCES</span> Compra(idCompra),<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (SKU) <span style="color: #c586c0;">REFERENCES</span> Producto(SKU)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #e5c07b; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Local y Ofrece</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Local(<br>
+                            &nbsp;&nbsp;idLocal <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">PRIMARY KEY</span>, ciudadLocal <span style="color: #4fc1ff;">VARCHAR(30)</span>, calleLocal <span style="color: #4fc1ff;">VARCHAR(30)</span>, numeroLocal <span style="color: #4fc1ff;">INTEGER</span><br>
+                            );<br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Ofrece(<br>
+                            &nbsp;&nbsp;idLocal <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">NOT NULL</span>, SKU <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">NOT NULL</span>, stock <span style="color: #4fc1ff;">INTEGER</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idLocal) <span style="color: #c586c0;">REFERENCES</span> Local(idLocal),<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (SKU) <span style="color: #c586c0;">REFERENCES</span> Producto(SKU)<br>
+                            );
+                        </div>
+
+                    </div>
+                </section>
+                <section>
+                    <h3 style="margin-bottom: 15px;">DDL: Logística y Entregas</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 0.38em; text-align: left; font-family: monospace;">
+                        
+                        <div style="border: 2px solid #4ebd93; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Vehiculo</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Vehiculo(<br>
+                            &nbsp;&nbsp;patente <span style="color: #4fc1ff;">VARCHAR(6)</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;disponibilidad <span style="color: #4fc1ff;">BOOLEAN</span>,<br>
+                            &nbsp;&nbsp;tipoVehiculo <span style="color: #4fc1ff;">VARCHAR(20)</span><br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #4ebd93; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Envio</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Envio(<br>
+                            &nbsp;&nbsp;idEnvio <span style="color: #4fc1ff;">SERIAL</span> <span style="color: #c586c0;">PRIMARY KEY</span>,<br>
+                            &nbsp;&nbsp;rutCliente <span style="color: #4fc1ff;">VARCHAR(10)</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;idRepartidor <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;horaEstimada <span style="color: #4fc1ff;">TIME</span>, direccionEnvio <span style="color: #4fc1ff;">TEXT</span>, precioEnvio <span style="color: #4fc1ff;">INTEGER</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (rutCliente) <span style="color: #c586c0;">REFERENCES</span> Cliente(rut),<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idRepartidor) <span style="color: #c586c0;">REFERENCES</span> Empleado(idEmpleado)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #4ebd93; padding: 10px; border-radius: 8px; background: #1e1e1e; color: #d4d4d4; overflow: auto;">
+                            <span style="color: #6a9955;">-- Tabla Conduce</span><br>
+                            <span style="color: #569cd6;">CREATE TABLE</span> Conduce(<br>
+                            &nbsp;&nbsp;idRepartidor <span style="color: #4fc1ff;">INTEGER</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;patente <span style="color: #4fc1ff;">VARCHAR(6)</span> <span style="color: #c586c0;">NOT NULL</span>,<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (idRepartidor) <span style="color: #c586c0;">REFERENCES</span> Empleado(idEmpleado),<br>
+                            &nbsp;&nbsp;<span style="color: #c586c0;">FOREIGN KEY</span> (patente) <span style="color: #c586c0;">REFERENCES</span> Vehiculo(patente)<br>
+                            );
+                        </div>
+
+                        <div style="border: 2px solid #d19a66; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.02); display: flex; align-items: center; justify-content: center; text-align: center; font-family: sans-serif;">
+                            <p style="margin: 0; color: #abb2bf; font-style: italic;">Fin de la estructura DDL<br>deliciasMineras</p>
+                        </div>
+
+                    </div>
                 </section>
             </section>
+            <!--fin del DDL ctm-->
 
             <section>
                 <section>
@@ -147,6 +449,16 @@ CREATE TABLE Ejemplo (
                 loader.style.visibility = "hidden";
             }, 2000); 
         });
+    </script>
+    <script>
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen()
+                    .catch(err => alert(`Error al intentar activar pantalla completa: ${err.message}`));
+            } else {
+                document.exitFullscreen();
+            }
+        }
     </script>
 
 </body>
