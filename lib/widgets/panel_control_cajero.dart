@@ -40,7 +40,8 @@ class PanelControlCajero extends StatelessWidget {
       width: 320,
       color: Colors.grey[100],
       padding: const EdgeInsets.all(16.0),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (clienteSeleccionado == null) ...[
@@ -166,8 +167,6 @@ class PanelControlCajero extends StatelessWidget {
             label: const Text('Detalle Venta del Día'),
           ),
 
-          const Spacer(),
-
           if (cajeroActual != null) ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -240,6 +239,7 @@ class PanelControlCajero extends StatelessWidget {
           ),
         ],
       ),
+    )
     );
   }
 }
