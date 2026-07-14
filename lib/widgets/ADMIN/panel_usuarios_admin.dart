@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
-import '../services/auth_service.dart';
-import '../widgets/modal_formulario_empleado.dart';
+import '../../core/app_theme.dart';
+import '../../services/auth_service.dart';
+import 'modal_formulario_empleado.dart';
 
 class PanelUsuariosAdmin extends StatefulWidget {
   const PanelUsuariosAdmin({super.key});

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../widgets/tarjeta_metrica_admin.dart';
+import '../widgets/ADMIN/tarjeta_metrica_admin.dart';
 import '../core/app_theme.dart';
-import '../widgets/grafico_ventas_barras.dart';
-import '../widgets/panel_inventario_admin.dart';
+import '../widgets/ADMIN/grafico_ventas_barras.dart';
+import '../widgets/ADMIN/panel_inventario_admin.dart';
 import '../data/mock_database.dart';
 import '../utils/app_formatters.dart';
-import '../widgets/admin_breadcrumbs.dart';
-import '../widgets/panel_ventas_admin.dart';
-import '../widgets/panel_usuarios_admin.dart';
+import '../widgets/ADMIN/admin_breadcrumbs.dart';
+import '../widgets/ADMIN/panel_ventas_admin.dart';
+import '../widgets/ADMIN/panel_usuarios_admin.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -42,7 +42,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _cargarMetricas();
   }
 
-  Future<void> _cargarMetricas() async {
+Future<void> _cargarMetricas() async {
     setState(() => _cargandoMetricas = true);
     try {
       final productos = await MockDatabase.instancia.obtenerProductos();
@@ -51,7 +51,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       int ingresosCalculados = 0;
       int comprasCalculadas = 0;
       
-      // Contadores temporales para el desglose
       int calcEfectivo = 0;
       int calcTarjeta = 0;
       int calcBoletas = 0;
@@ -65,19 +64,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             fechaVenta.month == hoy.month && 
             fechaVenta.day == hoy.day) {
 
-              
-          int totalVenta = venta['total'] as int;
+          // ARREGLO 1: Usamos 'num' y lo forzamos a int (El dinero en Chile no usa decimales)
+          int totalVenta = (venta['total'] as num).toInt();
+          
           ingresosCalculados += totalVenta;
           comprasCalculadas++;
 
-          // 1. Desglose por Documento
           if (venta['documento'] == 'Factura') {
             calcFacturas++;
           } else {
             calcBoletas++;
           }
 
-          // 2. Desglose por Método de Pago (Asumimos 'Tarjeta' si no viene el dato en la BD simulada)
           String metodo = venta['metodo_pago'] ?? 'Tarjeta'; 
           if (metodo == 'Efectivo') {
             calcEfectivo += totalVenta;
@@ -85,17 +83,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             calcTarjeta += totalVenta;
           }
         }
-        
       }
 
-        int stockCriticoCalculado = 0;
-        for (var prod in productos) {
-          if ((prod['stock'] as int) <= 5) {
-            stockCriticoCalculado++;
-          }
+      int stockCriticoCalculado = 0;
+      for (var prod in productos) {
+        // ARREGLO 2: Usamos 'num' porque el stock ahora puede ser double (ej: 1.250 kg de pan)
+        if ((prod['stock'] as num) <= 5) {
+          stockCriticoCalculado++;
         }
+      }
 
-      // Guardamos todo en el estado al final
       if (mounted) {
         setState(() {
           _totalProductos = productos.length;

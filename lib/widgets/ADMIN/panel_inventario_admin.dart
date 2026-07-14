@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
-import '../data/mock_database.dart';
-import '../widgets/modal_formulario_producto.dart';
+import '../../core/app_theme.dart';
+import '../../data/mock_database.dart';
+import 'modal_formulario_producto.dart';
 
 class PanelInventarioAdmin extends StatefulWidget {
   final String filtroInicialOrden;

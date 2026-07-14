@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
-import '../data/mock_database.dart';
-import '../utils/app_formatters.dart';
+import '../../core/app_theme.dart';
+import '../../data/mock_database.dart';
+import '../../utils/app_formatters.dart';
 
 class PanelVentasAdmin extends StatefulWidget {
   const PanelVentasAdmin({super.key});

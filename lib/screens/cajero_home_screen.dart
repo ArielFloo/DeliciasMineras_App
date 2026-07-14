@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/modal_pago_dialog.dart';
 import '../core/app_theme.dart';
@@ -8,8 +9,8 @@ import '../widgets/tarjeta_resumen_caja.dart';
 import '../widgets/panel_control_cajero.dart';
 import '../widgets/buscador_productos_dialog.dart';
 import '../widgets/buscador_clientes_dialog.dart';
+import '../widgets/modal_detalle_ventas.dart';
 
-// NUEVA IMPORTACIÓN DE LA BASE DE DATOS
 import '../data/mock_database.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
@@ -20,19 +21,22 @@ class CajeroHomeScreen extends StatefulWidget {
 }
 
 class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
-  // ESTADO DEL USUARIO Y SESIÓN
   late DateTime _horaInicioTurno;
   Timer? _timer;
   String _tiempoTranscurrido = "00:00:00";
   final Empleado? _cajeroActual = AuthService().currentUser;
 
-  // LISTAS ASÍNCRONAS (Vacías por defecto, se llenan desde la DB)
   List<Map<String, dynamic>> _productosDisponibles = [];
   List<Map<String, dynamic>> _clientesMayoristas = [];
-  bool _cargandoDatos = true; // Controla la pantalla de carga inicial
+  bool _cargandoDatos = true; 
 
   final TextEditingController _skuController = TextEditingController();
-  final Map<int, int> _carrito = {};
+  
+  final Map<int, double> _carrito = {};
+  
+  String _bufferEscaner = '';
+  final FocusNode _focusNodeGlobal = FocusNode();
+
   Map<String, dynamic>? _clienteSeleccionado;
   String? _tipoPedido; 
   final int _tarifaDespachoFija = 3500;
@@ -46,7 +50,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       _actualizarTiempoSesion();
     });
     
-    // Cargamos los datos desde el "Servidor" al iniciar la pantalla
+    _focusNodeGlobal.requestFocus(); 
     _cargarDatosDeServidor();
   }
 
@@ -78,19 +82,32 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     });
   }
 
-  void _agregarAlCarrito(Map<String, dynamic> producto, {int cantidad = 1}) {
+  void _agregarAlCarrito(Map<String, dynamic> producto, {double cantidad = 1.0}) {
     setState(() {
       int sku = producto['sku'];
-      int stockActual = producto['stock'];
-      int cantidadEnCarrito = _carrito[sku] ?? 0;
+      num stockActual = producto['stock'] as num; 
+      double cantidadEnCarrito = _carrito[sku] ?? 0.0;
 
-      if (cantidadEnCarrito + cantidad <= stockActual) {
+      // Validación limpia usando la categoría de tu base de datos
+      bool esGranel = producto['categoria'] == 'Panadería';
+
+      if (cantidadEnCarrito + cantidad <= stockActual || esGranel) {
         _carrito[sku] = cantidadEnCarrito + cantidad;
         _multiplicador = 1; 
+
+        if (cantidadEnCarrito + cantidad > stockActual) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Aviso: Vendiendo ${producto['nombre']} en negativo.'),
+              backgroundColor: AppTheme.warningColor, 
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Stock insuficiente. Solo quedan $stockActual unidades de ${producto['nombre']} en total.'),
+            content: Text('Stock insuficiente. Solo quedan $stockActual de ${producto['nombre']}.'),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -100,34 +117,60 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
   void _removerDelCarrito(int sku) {
     setState(() {
-      if (_carrito.containsKey(sku) && _carrito[sku]! > 1) {
-        _carrito[sku] = _carrito[sku]! - 1;
+      if (_carrito.containsKey(sku) && _carrito[sku]! > 1.0) {
+        _carrito[sku] = _carrito[sku]! - 1.0;
       } else {
         _carrito.remove(sku);
       }
     });
   }
 
-  void _buscarYAgregarPorSKU(String input) {
+  void _procesarCodigoEscaneado(String input) {
     if (input.isEmpty) return;
-    final int? skuBuscado = int.tryParse(input);
-    
-    if (skuBuscado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, ingresa un SKU numérico válido.')),
-      );
-      return;
+    input = input.trim();
+
+    if (input.length == 13 && input.startsWith('20')) {
+
+      String skuString = input.substring(2, 6); 
+      String pesoGramosString = input.substring(6, 12); 
+
+      int skuBuscado = int.parse(skuString); 
+      double pesoEnKilos = int.parse(pesoGramosString) / 1000.0; 
+
+      final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
+      if (index != -1) {
+        _agregarAlCarrito(_productosDisponibles[index], cantidad: pesoEnKilos);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${_productosDisponibles[index]['nombre']} pesado: $pesoEnKilos kg'),
+            backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Producto de balanza no encontrado.'), backgroundColor: AppTheme.errorColor),
+        );
+      }
+    } else {
+      _buscarYAgregarPorSKU(input);
     }
+    
+    _skuController.clear();
+  }
+
+  void _buscarYAgregarPorSKU(String input) {
+    final int? skuBuscado = int.tryParse(input);
+    if (skuBuscado == null) return;
 
     final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
     if (index != -1) {
-      _agregarAlCarrito(_productosDisponibles[index], cantidad: _multiplicador);
+      _agregarAlCarrito(_productosDisponibles[index], cantidad: _multiplicador.toDouble());
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('SKU $skuBuscado no encontrado en el sistema.')),
       );
     }
-    _skuController.clear();
   }
 
   Future<void> _abrirBuscadorAvanzado() async {
@@ -136,7 +179,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       builder: (context) => BuscadorProductosDialog(productos: _productosDisponibles),
     );
     if (productoSeleccionado != null) {
-      _agregarAlCarrito(productoSeleccionado, cantidad: _multiplicador);
+      _agregarAlCarrito(productoSeleccionado, cantidad: _multiplicador.toDouble());
     }
   }
 
@@ -232,102 +275,14 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-  Future<void> _mostrarDetalleVentas() async {
-    // 1. Mostrar loader de red
+Future<void> _mostrarDetalleVentas() async {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      barrierDismissible: true,
+      builder: (context) => ModalDetalleVentas(
+        productosDisponibles: _productosDisponibles,
+      ),
     );
-
-    // 2. Traer las ventas frescas desde la MockDatabase
-    final ventasDB = await MockDatabase.instancia.obtenerVentasDelDia();
-    
-    // 3. Cerrar loader
-    if (mounted) Navigator.pop(context);
-
-    int totalEfectivo = 0;
-    int totalDebito = 0;
-    int totalCredito = 0;
-
-    for (var venta in ventasDB) {
-      if (venta['metodo'] == 'Efectivo') totalEfectivo += venta['total'] as int;
-      if (venta['metodo'] == 'Debito') totalDebito += venta['total'] as int;
-      if (venta['metodo'] == 'Credito') totalCredito += venta['total'] as int;
-    }
-
-    final int totalAcumulado = totalEfectivo + totalDebito + totalCredito;
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.assessment, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text('Detalle de Ventas del Turno', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
-            ],
-          ),
-          content: SizedBox(
-            width: 500,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    TarjetaResumenCaja(titulo: 'Efectivo', monto: totalEfectivo, color: Colors.green),
-                    const SizedBox(width: 8),
-                    TarjetaResumenCaja(titulo: 'Débito', monto: totalDebito, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    TarjetaResumenCaja(titulo: 'Crédito', monto: totalCredito, color: Colors.orange),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Total Ingresos: \$$totalAcumulado', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
-                const Divider(height: 32),
-                const Text('Últimas Transacciones:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                
-                Expanded(
-                  child: ventasDB.isEmpty
-                      ? const Center(child: Text('No hay ventas registradas en este turno.', style: TextStyle(color: Colors.grey)))
-                      : ListView.builder(
-                          itemCount: ventasDB.length,
-                          itemBuilder: (context, index) {
-                            final venta = ventasDB[ventasDB.length - 1 - index];
-                            final hora = venta['hora'] as DateTime;
-                            final String horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
-                            
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.grey[200],
-                                child: Icon(
-                                  venta['metodo'] == 'Efectivo' ? Icons.payments : Icons.credit_card,
-                                  color: Theme.of(context).colorScheme.secondary,
-                                  size: 18,
-                                ),
-                              ),
-                              title: Text('${venta['documento']} - ${venta['metodo']}'),
-                              subtitle: Text(horaStr),
-                              trailing: Text('\$${venta['total']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   Future<void> _procesarPago(bool esFactura) async {
@@ -343,14 +298,12 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     if (metodoPago != null) {
       String tipoDoc = esFactura ? "Factura" : "Boleta";
       
-      // Mostrar loader mientras guardamos en BD
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Despachar a MockDatabase
       await MockDatabase.instancia.registrarVenta(
         carrito: _carrito,
         total: _totalCompra,
@@ -359,10 +312,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
         cliente: _clienteSeleccionado,
       );
 
-      // Refrescar inventario local para que el cajero vea el stock descontado
       await _cargarDatosDeServidor();
 
-      if (mounted) Navigator.pop(context); // Cerrar loader
+      if (mounted) Navigator.pop(context); 
 
       setState(() {
         _carrito.clear();
@@ -486,7 +438,6 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     );
 
     if (result != null) {
-      // Mostrar loader
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -494,9 +445,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       );
 
       await MockDatabase.instancia.registrarValeInterno(_carrito, result);
-      await _cargarDatosDeServidor(); // Refrescar stock local
+      await _cargarDatosDeServidor(); 
 
-      if (mounted) Navigator.pop(context); // Quitar loader
+      if (mounted) Navigator.pop(context); 
 
       setState(() {
         _carrito.clear();
@@ -517,7 +468,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
+  // CORRECCIÓN DE COLORES APLICADA AQUÍ
   Future<void> _cerrarCaja() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final bool? confirmar = await showDialog<bool>(
       context: context,
       barrierDismissible: false, 
@@ -527,7 +481,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
           children: [
             const Icon(Icons.lock_clock, color: AppTheme.errorColor, size: 32),
             const SizedBox(width: 8),
-            Text('Cierre de Caja', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+            Text('Cierre de Caja', style: TextStyle(color: colorScheme.secondary)),
           ],
         ),
         content: Column(
@@ -542,9 +496,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: colorScheme.surfaceVariant, // Respetando el tema
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[300]!),
+                border: Border.all(color: colorScheme.outlineVariant),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -554,7 +508,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                     _tiempoTranscurrido,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: colorScheme.primary,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -646,7 +600,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     int total = 0;
     _carrito.forEach((sku, cantidad) {
       final producto = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
-      total += (producto['precio'] as int) * cantidad;
+      total += ((producto['precio'] as num) * cantidad).round();
     });
     if (_tipoPedido == 'despacho') {
       total += _tarifaDespachoFija;
@@ -657,13 +611,15 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   @override
   void dispose() {
     _skuController.dispose();
+    _focusNodeGlobal.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // PROTECCIÓN DE PANTALLA MIENTRAS CARGA LA DB
+    final colorScheme = Theme.of(context).colorScheme; // Para consumir tu AppTheme de forma segura
+
     if (_cargandoDatos) {
       return const Scaffold(
         body: Center(
@@ -679,274 +635,294 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 80,
-        title: Image.asset(
-          'assets/banner.png', 
-          height: 80, 
-          fit: BoxFit.contain, 
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => context.go('/'),
+    return KeyboardListener(
+      focusNode: _focusNodeGlobal,
+      autofocus: true,
+      onKeyEvent: (KeyEvent event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.enter) {
+            if (_bufferEscaner.isNotEmpty) {
+              _procesarCodigoEscaneado(_bufferEscaner);
+              _bufferEscaner = ''; 
+            }
+          } else if (event.character != null) {
+            _bufferEscaner += event.character!;
+          }
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: 80,
+          title: Image.asset(
+            'assets/banner.png', 
+            height: 80, 
+            fit: BoxFit.contain, 
           ),
-        ],
-      ),
-      body: Row(
-        children: [
-          // LADO IZQUIERDO: Boleta Gigante y Buscador Principal
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // CABECERA DE BÚSQUEDA
-                  Row(
-                    children: [
-                      SizedBox(
-                        height: 60,
-                        child: Tooltip(
-                          message: 'Cambiar cantidad a multiplicar',
-                          waitDuration: const Duration(milliseconds: 500), 
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _multiplicador > 1 
-                                  ? AppTheme.warningColor 
-                                  : Theme.of(context).colorScheme.primaryContainer,
-                              foregroundColor: _multiplicador > 1 
-                                  ? Colors.white 
-                                  : Theme.of(context).colorScheme.primary,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: _configurarMultiplicador,
-                            child: Text(
-                              'x$_multiplicador',
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () => context.go('/'),
+            ),
+          ],
+        ),
+        body: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          height: 60,
+                          child: Tooltip(
+                            message: 'Cambiar cantidad a multiplicar',
+                            waitDuration: const Duration(milliseconds: 500), 
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _multiplicador > 1 
+                                    ? AppTheme.warningColor 
+                                    : colorScheme.primaryContainer,
+                                foregroundColor: _multiplicador > 1 
+                                    ? Colors.white 
+                                    : colorScheme.primary,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: _configurarMultiplicador,
+                              child: Text(
+                                'x$_multiplicador',
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      
-                      Expanded(
-                        child: TextField(
-                          controller: _skuController,
-                          keyboardType: TextInputType.number,
-                          style: const TextStyle(fontSize: 20),
-                          decoration: InputDecoration(
-                            labelText: 'Pistolear o Ingresar SKU',
-                            hintText: 'Ej: 1, 2, 3...',
-                            prefixIcon: const Icon(Icons.qr_code_scanner, size: 32),
-                            suffixIcon: IconButton(
-                              icon: Icon(Icons.keyboard_return, color: Theme.of(context).colorScheme.primary),
-                              onPressed: () => _buscarYAgregarPorSKU(_skuController.text),
+                        const SizedBox(width: 16),
+                        
+                        Expanded(
+                          child: TextField(
+                            controller: _skuController,
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(fontSize: 20),
+                            decoration: InputDecoration(
+                              labelText: 'Pistolear o Ingresar SKU',
+                              hintText: 'Ej: 1, 2, 3...',
+                              prefixIcon: const Icon(Icons.qr_code_scanner, size: 32),
+                              suffixIcon: IconButton(
+                                icon: Icon(Icons.keyboard_return, color: colorScheme.primary),
+                                onPressed: () => _procesarCodigoEscaneado(_skuController.text),
+                              ),
                             ),
+                            onSubmitted: _procesarCodigoEscaneado,
                           ),
-                          onSubmitted: _buscarYAgregarPorSKU,
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      SizedBox(
-                        height: 60,
-                        child: OutlinedButton.icon(
-                          onPressed: _abrirBuscadorAvanzado,
-                          icon: Icon(Icons.search, color: Theme.of(context).colorScheme.primary),
-                          label: const Text('Buscar por Nombre', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 16),
+                        SizedBox(
+                          height: 60,
+                          child: OutlinedButton.icon(
+                            onPressed: _abrirBuscadorAvanzado,
+                            icon: Icon(Icons.search, color: colorScheme.primary),
+                            label: const Text('Buscar por Nombre', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Detalle de la Transacción',
-                        style: TextStyle(
-                          fontSize: 24, 
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          if (_tipoPedido != null)
-                            Chip(
-                              backgroundColor: _tipoPedido == 'despacho' ? AppTheme.warningColor.withOpacity(0.2) : AppTheme.infoColor.withOpacity(0.2),
-                              label: Text(
-                                _tipoPedido == 'despacho' ? '🚚 DESPACHO' : '🛍️ RETIRO',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: _tipoPedido == 'despacho' ? AppTheme.warningColor : AppTheme.infoColor,
-                                ),
-                              ),
-                              onDeleted: () => setState(() => _tipoPedido = null),
-                            ),
-                          
-                          const SizedBox(width: 16),
-                          
-                          if (_carrito.isNotEmpty || _clienteSeleccionado != null)
-                            TextButton.icon(
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppTheme.errorColor,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              onPressed: _anularVenta,
-                              icon: const Icon(Icons.delete_sweep),
-                              label: const Text('Anular Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Divider(thickness: 2),
-                  
-                  if (_carrito.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(flex: 1, child: Text('Cant.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(flex: 2, child: Text('Precio Unit.', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(flex: 2, child: Text('Subtotal', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
-                          SizedBox(width: 48), 
-                        ],
-                      ),
+                      ],
                     ),
-                  
-                  if (_carrito.isNotEmpty) const SizedBox(height: 8),
-
-                  Expanded(
-                    child: _carrito.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Escanea un producto para comenzar',
-                              style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.outline),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: _carrito.length,
-                            separatorBuilder: (context, index) => const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final sku = _carrito.keys.elementAt(index);
-                              final cantidad = _carrito[sku]!;
-                              final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
-                              final subtotal = (prod['precio'] as int) * cantidad;
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(prod['nombre'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 1,
-                                      child: Text(
-                                        '$cantidad', 
-                                        textAlign: TextAlign.center, 
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        '\$${prod['precio']}', 
-                                        textAlign: TextAlign.right, 
-                                        style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant)
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        '\$$subtotal', 
-                                        textAlign: TextAlign.right, 
-                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      width: 48,
-                                      child: Align(
-                                        alignment: Alignment.centerRight,
-                                        child: IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
-                                          onPressed: () => _removerDelCarrito(sku),
-                                          tooltip: 'Eliminar unidad',
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
+                    const SizedBox(height: 24),
+                    
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Detalle de la Transacción',
+                          style: TextStyle(
+                            fontSize: 24, 
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            if (_tipoPedido != null)
+                              Chip(
+                                backgroundColor: _tipoPedido == 'despacho' ? AppTheme.warningColor.withOpacity(0.2) : AppTheme.infoColor.withOpacity(0.2),
+                                label: Text(
+                                  _tipoPedido == 'despacho' ? '🚚 DESPACHO' : '🛍️ RETIRO',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _tipoPedido == 'despacho' ? AppTheme.warningColor : AppTheme.infoColor,
+                                  ),
+                                ),
+                                onDeleted: () => setState(() => _tipoPedido = null),
+                              ),
+                            
+                            const SizedBox(width: 16),
+                            
+                            if (_carrito.isNotEmpty || _clienteSeleccionado != null)
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppTheme.errorColor,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                onPressed: _anularVenta,
+                                icon: const Icon(Icons.delete_sweep),
+                                label: const Text('Anular Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const Divider(thickness: 2),
+                    
+                    if (_carrito.isNotEmpty)
+                      // CORRECCIÓN DE COLORES APLICADA AQUÍ (Encabezado del carrito)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant, // Respetando el tema
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Expanded(flex: 1, child: Text('Cant.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold))),
+                            Expanded(flex: 2, child: Text('Precio Unit.', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
+                            Expanded(flex: 2, child: Text('Subtotal', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold))),
+                            SizedBox(width: 48), 
+                          ],
+                        ),
+                      ),
+                    
+                    if (_carrito.isNotEmpty) const SizedBox(height: 8),
+  
+                    Expanded(
+                      child: _carrito.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Escanea un producto para comenzar',
+                                style: TextStyle(fontSize: 20, color: colorScheme.outline), // Respetando el tema
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: _carrito.length,
+                              separatorBuilder: (context, index) => const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final sku = _carrito.keys.elementAt(index);
+                                final cantidad = _carrito[sku]!;
+                                final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
+                                
+                                final int subtotal = ((prod['precio'] as num) * cantidad).round();
+                                final String cantAVisualizar = cantidad.truncateToDouble() == cantidad 
+                                    ? cantidad.toInt().toString() 
+                                    : cantidad.toStringAsFixed(3);
+  
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 4,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(prod['nombre'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                            Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                  
-                  if (_tipoPedido == 'despacho') ...[
-                    const Divider(),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.local_shipping, color: AppTheme.warningColor),
-                      title: const Text('Costo de Envío Fijo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                      trailing: Text('\$$_tarifaDespachoFija', style: const TextStyle(fontSize: 18)),
+                                      Expanded(
+                                        flex: 1,
+                                        child: Text(
+                                          cantAVisualizar, 
+                                          textAlign: TextAlign.center, 
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          '\$${prod['precio']}', 
+                                          textAlign: TextAlign.right, 
+                                          style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant)
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          '\$$subtotal', 
+                                          textAlign: TextAlign.right, 
+                                          // CORRECCIÓN DE COLORES APLICADA AQUÍ (Texto oscuro sobre fondo claro respetando el tema)
+                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface) 
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 48,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+                                            onPressed: () => _removerDelCarrito(sku),
+                                            tooltip: 'Eliminar unidad',
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    
+                    if (_tipoPedido == 'despacho') ...[
+                      const Divider(),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.local_shipping, color: AppTheme.warningColor),
+                        title: const Text('Costo de Envío Fijo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        trailing: Text('\$$_tarifaDespachoFija', style: const TextStyle(fontSize: 18)),
+                      ),
+                    ],
+  
+                    const Divider(thickness: 2),
+                    Text(
+                      'Total a Pagar: \$$_totalCompra',
+                      style: TextStyle(
+                        fontSize: 40, 
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                      textAlign: TextAlign.right,
                     ),
                   ],
-
-                  const Divider(thickness: 2),
-                  Text(
-                    'Total a Pagar: \$$_totalCompra',
-                    style: TextStyle(
-                      fontSize: 40, 
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-
-          PanelControlCajero(
-            clienteSeleccionado: _clienteSeleccionado,
-            tipoPedido: _tipoPedido,
-            carritoVacio: _carrito.isEmpty,
-            cajeroActual: _cajeroActual,
-            tiempoTranscurrido: _tiempoTranscurrido,
-            onAsignarMayorista: _abrirBuscadorMayoristas,
-            onConfigurarPedido: _configurarPedido,
-            onCobrarBoleta: _intentarCobrarBoleta,
-            onEmitirFactura: () => _procesarPago(true),
-            onEmitirValeInterno: _procesarValeInterno,
-            onVerDetalleVenta: _mostrarDetalleVentas,
-            onCierreCaja: _cerrarCaja,
-            onQuitarCliente: () {
-              setState(() {
-                _clienteSeleccionado = null;
-                if (_tipoPedido == 'despacho') _tipoPedido = null;
-              });
-            },
-          ),
-        ],
+  
+            PanelControlCajero(
+              clienteSeleccionado: _clienteSeleccionado,
+              tipoPedido: _tipoPedido,
+              carritoVacio: _carrito.isEmpty,
+              cajeroActual: _cajeroActual,
+              tiempoTranscurrido: _tiempoTranscurrido,
+              onAsignarMayorista: _abrirBuscadorMayoristas,
+              onConfigurarPedido: _configurarPedido,
+              onCobrarBoleta: _intentarCobrarBoleta,
+              onEmitirFactura: () => _procesarPago(true),
+              onEmitirValeInterno: _procesarValeInterno,
+              onVerDetalleVenta: _mostrarDetalleVentas,
+              onCierreCaja: _cerrarCaja,
+              onQuitarCliente: () {
+                setState(() {
+                  _clienteSeleccionado = null;
+                  if (_tipoPedido == 'despacho') _tipoPedido = null;
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

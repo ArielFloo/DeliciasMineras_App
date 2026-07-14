@@ -1,8 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
-import '../data/mock_database.dart';
-import '../utils/app_formatters.dart';
+import '../../core/app_theme.dart';
+import '../../data/mock_database.dart';
+import '../../utils/app_formatters.dart';
 
 class GraficoVentasBarras extends StatefulWidget {
   const GraficoVentasBarras({super.key});

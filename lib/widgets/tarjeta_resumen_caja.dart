@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_formatters.dart';
 
 class TarjetaResumenCaja extends StatelessWidget {
   final String titulo;
@@ -30,7 +31,8 @@ class TarjetaResumenCaja extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '\$$monto', 
+              // 2. Aplicamos el formato aquí
+              '\$${AppFormatters.formatearDinero(monto)}', 
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
             ),
           ],

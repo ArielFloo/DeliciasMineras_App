@@ -8,7 +8,7 @@ class MockDatabase {
   // TABLAS EN MEMORIA (El estado global)
   // ==========================================
   final List<Map<String, dynamic>> _productos = [
-    {'sku': 1, 'nombre': 'Pan de Molde Integral', 'precio': 2500, 'stock': 2, 'categoria': 'Panadería'},
+    {'sku': 1, 'nombre': 'Pan Kilo', 'precio': 2500, 'stock': 50, 'categoria': 'Panadería'},
     {'sku': 2, 'nombre': 'Medialunas', 'precio': 600, 'stock': 20, 'categoria': 'Pastelería'}, 
     {'sku': 3, 'nombre': 'Kuchen de Manzana', 'precio': 8500, 'stock': 13, 'categoria': 'Pastelería'},
     {'sku': 4, 'nombre': 'Baguette', 'precio': 1200, 'stock': 10, 'categoria': 'Panadería'},
@@ -32,6 +32,26 @@ class MockDatabase {
 
   final List<Map<String, dynamic>> _valesInternos = [];
 
+  DateTime? _ultimoReseteo;
+
+  void _verificarReseteoDiario() {
+      final ahora = DateTime.now();
+      
+      if (_ultimoReseteo == null || 
+          _ultimoReseteo!.day != ahora.day || 
+          _ultimoReseteo!.month != ahora.month || 
+          _ultimoReseteo!.year != ahora.year) {
+        
+      for (var producto in _productos) {
+        if (producto['categoria'] == 'Panadería') {
+          producto['stock'] = 50.0;
+        }
+      }
+        
+        _ultimoReseteo = ahora;
+      }
+    }
+
   // Simulador de latencia de red (Medio segundo)
   Future<void> _latenciaRed() async {
     await Future.delayed(const Duration(milliseconds: 500));
@@ -43,7 +63,7 @@ class MockDatabase {
   
   Future<List<Map<String, dynamic>>> obtenerProductos() async {
     await _latenciaRed();
-    // Devolvemos una copia profunda de la lista para evitar mutaciones directas
+    _verificarReseteoDiario();
     return List<Map<String, dynamic>>.from(_productos.map((p) => Map<String, dynamic>.from(p)));
   }
 
@@ -57,19 +77,16 @@ class MockDatabase {
     return List<Map<String, dynamic>>.from(_ventas);
   }
 
-  /// Agrega un nuevo producto validando que el SKU no exista
   Future<bool> agregarProducto(Map<String, dynamic> nuevoProducto) async {
     await _latenciaRed();
-    // Validar si el SKU ya existe
     if (_productos.any((p) => p['sku'] == nuevoProducto['sku'])) {
-      return false; // Retorna falso si hay choque de SKU
+      return false; 
     }
     _productos.add(nuevoProducto);
     print("DB: Producto agregado con éxito (SKU: ${nuevoProducto['sku']})");
     return true;
   }
 
-  /// Actualiza los datos de un producto existente buscando por su SKU original
   Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActualizados) async {
     await _latenciaRed();
     final index = _productos.indexWhere((p) => p['sku'] == skuOriginal);
@@ -79,7 +96,6 @@ class MockDatabase {
     }
   }
 
-  /// Elimina un producto de la base de datos buscando por su SKU
   Future<void> eliminarProducto(int sku) async {
     await _latenciaRed();
     _productos.removeWhere((p) => p['sku'] == sku);
@@ -90,9 +106,8 @@ class MockDatabase {
   // MÉTODOS DE ESCRITURA (TRANSACCIONES)
   // ==========================================
 
-  /// Registra una venta oficial, descuenta el stock y guarda el registro
   Future<void> registrarVenta({
-    required Map<int, int> carrito, 
+    required Map<int, double> carrito, 
     required int total, 
     required String documento, 
     required String metodoPago,
@@ -105,25 +120,26 @@ class MockDatabase {
       final cantidadComprada = carrito[sku]!;
       final index = _productos.indexWhere((p) => p['sku'] == sku);
       
-      if (index != -1 && _productos[index]['stock'] >= cantidadComprada) {
+      // Permitimos que la venta proceda incluso en negativo para Panadería
+      if (index != -1) {
         _productos[index]['stock'] -= cantidadComprada;
       }
     }
 
-    // 2. Registrar la venta en el historial
+    // 2. Registrar la venta en el historial integrando el carrito
     _ventas.add({
       'hora': DateTime.now(),
       'documento': documento,
       'metodo': metodoPago,
       'total': total,
       'rutCliente': cliente?['rut'],
+      'carrito': Map<int, double>.from(carrito),
     });
 
     print("DB: Venta $documento guardada y stock descontado.");
   }
 
-  /// Registra un movimiento sin valor fiscal (merma, fiado) y descuenta stock
-  Future<void> registrarValeInterno(Map<int, int> carrito, String motivo) async {
+  Future<void> registrarValeInterno(Map<int, double> carrito, String motivo) async {
     await _latenciaRed();
 
     // 1. Descontar el stock
@@ -131,16 +147,16 @@ class MockDatabase {
       final cantidadMovida = carrito[sku]!;
       final index = _productos.indexWhere((p) => p['sku'] == sku);
       
-      if (index != -1 && _productos[index]['stock'] >= cantidadMovida) {
+      if (index != -1) {
         _productos[index]['stock'] -= cantidadMovida;
       }
     }
 
-    // 2. Guardar el comprobante interno
+    // 2. Guardar el comprobante interno integrando el carrito
     _valesInternos.add({
       'hora': DateTime.now(),
       'motivo': motivo,
-      'items': Map<int, int>.from(carrito),
+      'items': Map<int, double>.from(carrito),
     });
 
     print("DB: Vale interno guardado ($motivo) y stock descontado.");

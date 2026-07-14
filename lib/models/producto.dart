@@ -18,6 +18,7 @@ class Producto {
       categoria: json['categoria'] as String,
       nombre: json['nombre_producto'] as String,
       precio: json['precio'] as int,
+
     );
   }
 
