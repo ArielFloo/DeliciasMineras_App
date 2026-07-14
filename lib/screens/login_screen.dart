@@ -197,19 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text("Ingresar", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                           const SizedBox(height: 24),
-
-                          // BOTÓN DE REGISTRO INACTIVO
-                          TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Función de registro próximamente...')),
-                              );
-                            },
-                            child: Text(
-                              "Registrar nuevo usuario", 
-                              style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary),
-                            ),
-                          ),
                         ],
                       ),
                     ),

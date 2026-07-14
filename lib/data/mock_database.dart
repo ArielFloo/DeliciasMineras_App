@@ -57,6 +57,35 @@ class MockDatabase {
     return List<Map<String, dynamic>>.from(_ventas);
   }
 
+  /// Agrega un nuevo producto validando que el SKU no exista
+  Future<bool> agregarProducto(Map<String, dynamic> nuevoProducto) async {
+    await _latenciaRed();
+    // Validar si el SKU ya existe
+    if (_productos.any((p) => p['sku'] == nuevoProducto['sku'])) {
+      return false; // Retorna falso si hay choque de SKU
+    }
+    _productos.add(nuevoProducto);
+    print("DB: Producto agregado con éxito (SKU: ${nuevoProducto['sku']})");
+    return true;
+  }
+
+  /// Actualiza los datos de un producto existente buscando por su SKU original
+  Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActualizados) async {
+    await _latenciaRed();
+    final index = _productos.indexWhere((p) => p['sku'] == skuOriginal);
+    if (index != -1) {
+      _productos[index] = datosActualizados;
+      print("DB: Producto actualizado con éxito (SKU: $skuOriginal)");
+    }
+  }
+
+  /// Elimina un producto de la base de datos buscando por su SKU
+  Future<void> eliminarProducto(int sku) async {
+    await _latenciaRed();
+    _productos.removeWhere((p) => p['sku'] == sku);
+    print("DB: Producto eliminado con éxito (SKU: $sku)");
+  }
+
   // ==========================================
   // MÉTODOS DE ESCRITURA (TRANSACCIONES)
   // ==========================================
