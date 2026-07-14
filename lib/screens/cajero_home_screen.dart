@@ -10,8 +10,11 @@ import '../widgets/panel_control_cajero.dart';
 import '../widgets/buscador_productos_dialog.dart';
 import '../widgets/buscador_clientes_dialog.dart';
 import '../widgets/modal_detalle_ventas.dart';
-
 import '../data/mock_database.dart';
+import '../utils/app_formatters.dart'; 
+import '../utils/local_storage.dart';
+import '../widgets/modal_turno_pendiente.dart';
+import '../widgets/modal_cierre_caja.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -22,9 +25,10 @@ class CajeroHomeScreen extends StatefulWidget {
 
 class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   late DateTime _horaInicioTurno;
+  String? _turnoId;
   Timer? _timer;
   String _tiempoTranscurrido = "00:00:00";
-  final Empleado? _cajeroActual = AuthService().currentUser;
+  Empleado? _cajeroActual;
 
   List<Map<String, dynamic>> _productosDisponibles = [];
   List<Map<String, dynamic>> _clientesMayoristas = [];
@@ -36,6 +40,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   
   String _bufferEscaner = '';
   final FocusNode _focusNodeGlobal = FocusNode();
+  final FocusNode _focusNodeTextField = FocusNode();
 
   Map<String, dynamic>? _clienteSeleccionado;
   String? _tipoPedido; 
@@ -45,11 +50,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _horaInicioTurno = DateTime.now();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _actualizarTiempoSesion();
-    });
-    
+    _inicializarCaja();
     _focusNodeGlobal.requestFocus(); 
     _cargarDatosDeServidor();
   }
@@ -112,6 +113,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
           ),
         );
       }
+      _sincronizarEstadoCarrito();
     });
   }
 
@@ -123,6 +125,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
         _carrito.remove(sku);
       }
     });
+    _sincronizarEstadoCarrito();
   }
 
   void _procesarCodigoEscaneado(String input) {
@@ -275,7 +278,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     }
   }
 
-Future<void> _mostrarDetalleVentas() async {
+  Future<void> _mostrarDetalleVentas() async {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -321,7 +324,10 @@ Future<void> _mostrarDetalleVentas() async {
         _clienteSeleccionado = null;
         _tipoPedido = null;
         _multiplicador = 1; 
+        
       });
+
+      _sincronizarEstadoCarrito();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -456,6 +462,8 @@ Future<void> _mostrarDetalleVentas() async {
         _multiplicador = 1;
       });
 
+      _sincronizarEstadoCarrito();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -468,74 +476,24 @@ Future<void> _mostrarDetalleVentas() async {
     }
   }
 
-  // CORRECCIÓN DE COLORES APLICADA AQUÍ
-  Future<void> _cerrarCaja() async {
-    final colorScheme = Theme.of(context).colorScheme;
-
+Future<void> _cerrarCaja() async {
+    // Invocamos el nuevo modal limpio
     final bool? confirmar = await showDialog<bool>(
       context: context,
       barrierDismissible: false, 
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.lock_clock, color: AppTheme.errorColor, size: 32),
-            const SizedBox(width: 8),
-            Text('Cierre de Caja', style: TextStyle(color: colorScheme.secondary)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '¿Estás seguro de que deseas cerrar la caja y finalizar tu turno?',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceVariant, // Respetando el tema
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Tiempo total del turno:'),
-                  Text(
-                    _tiempoTranscurrido,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar', style: TextStyle(fontSize: 16)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sí, Cerrar Caja', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
+      builder: (context) => ModalCierreCaja(
+        tiempoTranscurrido: _tiempoTranscurrido,
       ),
     );
 
+    // Mantenemos intacta la lógica de cierre original
     if (confirmar == true) {
       _timer?.cancel();
+
+      if (_turnoId != null) {
+        await MockDatabase.instancia.cerrarTurno(_turnoId!); 
+      }
+
       if (mounted) {
         context.go('/');
       }
@@ -608,17 +566,109 @@ Future<void> _mostrarDetalleVentas() async {
     return total;
   }
 
+Future<void> _inicializarCaja() async {
+    // 0. Leemos la RAM al inicio por si el login acaba de ocurrir
+    _cajeroActual = AuthService().currentUser;
+
+    // 1. Cargamos productos y clientes para poder renderizar
+    await _cargarDatosDeServidor();
+
+    // 2. Revisamos si hay una sesión guardada físicamente en el equipo
+    final sesionLocal = await LocalStorage.obtenerSesionCaja();
+
+    if (sesionLocal != null) {
+      if (!mounted) return;
+      
+      // LLAMADA LIMPIA AL NUEVO WIDGET
+      final result = await showDialog<String>(
+        context: context,
+        barrierDismissible: false, 
+        builder: (context) => ModalTurnoPendiente(
+          horaInicio: sesionLocal['horaInicio'],
+          cantidadProductos: (sesionLocal['carrito'] as Map).length,
+        ),
+      );
+
+      // Evaluamos la decisión del cajero
+      if (result == 'REANUDAR') {
+        setState(() {
+          _turnoId = sesionLocal['turnoId'];
+          _horaInicioTurno = sesionLocal['horaInicio'];
+          
+      // ¡RESTAURAMOS AL CAJERO CON TU MODELO REAL!
+      _cajeroActual ??= Cajero(
+        id: sesionLocal['cajeroId'] ?? 'EMP-DEFAULT',
+        nombre: sesionLocal['cajeroNombre'] ?? 'Cajero',
+        rut: sesionLocal['cajeroRut'] ?? '', // Campo requerido por la clase Empleado
+        rol: 'Cajero', // Usamos 'tipo' en lugar de 'rol' según tu modelo
+        idLocal: sesionLocal['idLocal'] ?? 1, password: '', // ¡El ID del local que nos faltaba!
+      );
+          
+          final Map<int, double> carritoGuardado = sesionLocal['carrito'];
+          if (carritoGuardado.isNotEmpty) {
+            _carrito.addAll(carritoGuardado);
+          }
+        });
+        _iniciarContadorTiempo();
+        
+      } else if (result == 'CERRAR_ANTIGUO') {
+        await MockDatabase.instancia.cerrarTurno(sesionLocal['turnoId']);
+        await LocalStorage.borrarSesionCaja();
+        
+        final String empleadoId = _cajeroActual?.id ?? 'EMP-DEFAULT';
+        await _abrirNuevoTurno(empleadoId);
+      }
+      
+    } else {
+      final String empleadoId = _cajeroActual?.id ?? 'EMP-DEFAULT';
+      await _abrirNuevoTurno(empleadoId);
+    }
+  }
+
+  Future<void> _abrirNuevoTurno(String empleadoId) async {
+    final nuevoId = await MockDatabase.instancia.abrirTurno(empleadoId);
+    setState(() {
+      _turnoId = nuevoId;
+      _horaInicioTurno = DateTime.now();
+    });
+    _iniciarContadorTiempo();
+  }
+
+  void _iniciarContadorTiempo() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _actualizarTiempoSesion();
+    });
+  }
+
+void _sincronizarEstadoCarrito() {
+    if (_turnoId != null) {
+      MockDatabase.instancia.sincronizarCarrito(_turnoId!, _carrito);
+      
+      LocalStorage.guardarSesionCaja(
+        turnoId: _turnoId!,
+        horaInicio: _horaInicioTurno,
+        carrito: _carrito,
+        cajeroId: _cajeroActual?.id ?? 'EMP-DEFAULT',
+        cajeroNombre: _cajeroActual?.nombre ?? 'Cajero Desconocido',
+        cajeroRut: _cajeroActual?.rut ?? '',
+        idLocal: (_cajeroActual is Cajero) ? (_cajeroActual as Cajero).idLocal : 1, 
+      );
+    }
+  }
+
   @override
   void dispose() {
     _skuController.dispose();
     _focusNodeGlobal.dispose();
+    _focusNodeTextField.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme; // Para consumir tu AppTheme de forma segura
+    final colorScheme = Theme.of(context).colorScheme; 
 
     if (_cargandoDatos) {
       return const Scaffold(
@@ -635,22 +685,25 @@ Future<void> _mostrarDetalleVentas() async {
       );
     }
 
-    return KeyboardListener(
-      focusNode: _focusNodeGlobal,
-      autofocus: true,
-      onKeyEvent: (KeyEvent event) {
-        if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
-            if (_bufferEscaner.isNotEmpty) {
-              _procesarCodigoEscaneado(_bufferEscaner);
-              _bufferEscaner = ''; 
+      return KeyboardListener(
+        focusNode: _focusNodeGlobal,
+        autofocus: true,
+        onKeyEvent: (KeyEvent event) {
+          // SI EL USUARIO ESTÁ ESCRIBIENDO EN EL TEXTFIELD, IGNORAMOS EL BUFFER GLOBAL
+          if (_focusNodeTextField.hasFocus) return; 
+
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.enter) {
+              if (_bufferEscaner.isNotEmpty) {
+                _procesarCodigoEscaneado(_bufferEscaner);
+                _bufferEscaner = ''; 
+              }
+            } else if (event.character != null) {
+              _bufferEscaner += event.character!;
             }
-          } else if (event.character != null) {
-            _bufferEscaner += event.character!;
           }
-        }
-      },
-      child: Scaffold(
+        },
+        child: Scaffold(
         appBar: AppBar(
           toolbarHeight: 80,
           title: Image.asset(
@@ -704,6 +757,7 @@ Future<void> _mostrarDetalleVentas() async {
                         Expanded(
                           child: TextField(
                             controller: _skuController,
+                            focusNode: _focusNodeTextField,
                             keyboardType: TextInputType.number,
                             style: const TextStyle(fontSize: 20),
                             decoration: InputDecoration(
@@ -767,7 +821,7 @@ Future<void> _mostrarDetalleVentas() async {
                                 ),
                                 onPressed: _anularVenta,
                                 icon: const Icon(Icons.delete_sweep),
-                                label: const Text('Anular Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                label: const Text('Anular Total Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               ),
                           ],
                         ),
@@ -776,7 +830,6 @@ Future<void> _mostrarDetalleVentas() async {
                     const Divider(thickness: 2),
                     
                     if (_carrito.isNotEmpty)
-                      // CORRECCIÓN DE COLORES APLICADA AQUÍ (Encabezado del carrito)
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                         decoration: BoxDecoration(
@@ -801,7 +854,7 @@ Future<void> _mostrarDetalleVentas() async {
                           ? Center(
                               child: Text(
                                 'Escanea un producto para comenzar',
-                                style: TextStyle(fontSize: 20, color: colorScheme.outline), // Respetando el tema
+                                style: TextStyle(fontSize: 20, color: colorScheme.outline), 
                               ),
                             )
                           : ListView.separated(
@@ -813,10 +866,21 @@ Future<void> _mostrarDetalleVentas() async {
                                 final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
                                 
                                 final int subtotal = ((prod['precio'] as num) * cantidad).round();
-                                final String cantAVisualizar = cantidad.truncateToDouble() == cantidad 
-                                    ? cantidad.toInt().toString() 
-                                    : cantidad.toStringAsFixed(3);
-  
+                                // 1. Determinamos si el producto se vende por peso
+                                // (Puedes ajustar esta validación según cómo diferencies tus productos en la BD)
+                                final bool esGranel = prod['categoria'] == 'Panadería'; 
+
+                                String cantAVisualizar;
+
+                                // 2. Si es a granel o si la cantidad detecta decimales (ej: 0.5)
+                                if (esGranel || cantidad.truncateToDouble() != cantidad) {
+                                  // Forzamos 3 decimales, cambiamos el punto por coma y agregamos " kg"
+
+                                  cantAVisualizar = '${cantidad.toStringAsFixed(3).replaceAll('.', ',')} kg';
+                                } else {
+                                  // Si es un producto unitario (ej: una bebida), lo mostramos entero. 
+                                  // Opcionalmente puedes agregarle " un" al final: '${cantidad.toInt()} un'
+                                  cantAVisualizar = '${cantidad.toInt()} un';}
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
                                   child: Row(
@@ -842,7 +906,8 @@ Future<void> _mostrarDetalleVentas() async {
                                       Expanded(
                                         flex: 2,
                                         child: Text(
-                                          '\$${prod['precio']}', 
+                                          // Se aplica AppFormatters.formatearDinero al precio unitario
+                                          '\$${AppFormatters.formatearDinero((prod['precio'] as num).round())}', 
                                           textAlign: TextAlign.right, 
                                           style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant)
                                         ),
@@ -850,9 +915,9 @@ Future<void> _mostrarDetalleVentas() async {
                                       Expanded(
                                         flex: 2,
                                         child: Text(
-                                          '\$$subtotal', 
+                                          // Se aplica AppFormatters.formatearDinero al subtotal
+                                          '\$${AppFormatters.formatearDinero(subtotal)}', 
                                           textAlign: TextAlign.right, 
-                                          // CORRECCIÓN DE COLORES APLICADA AQUÍ (Texto oscuro sobre fondo claro respetando el tema)
                                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface) 
                                         ),
                                       ),
@@ -882,13 +947,15 @@ Future<void> _mostrarDetalleVentas() async {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.local_shipping, color: AppTheme.warningColor),
                         title: const Text('Costo de Envío Fijo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                        trailing: Text('\$$_tarifaDespachoFija', style: const TextStyle(fontSize: 18)),
+                        // Se aplica AppFormatters.formatearDinero a la tarifa de despacho
+                        trailing: Text('\$${AppFormatters.formatearDinero(_tarifaDespachoFija)}', style: const TextStyle(fontSize: 18)),
                       ),
                     ],
   
                     const Divider(thickness: 2),
                     Text(
-                      'Total a Pagar: \$$_totalCompra',
+                      // Se aplica AppFormatters.formatearDinero al total de la compra
+                      'Total a Pagar: \$${AppFormatters.formatearDinero(_totalCompra)}',
                       style: TextStyle(
                         fontSize: 40, 
                         fontWeight: FontWeight.bold,
