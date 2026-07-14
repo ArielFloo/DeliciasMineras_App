@@ -1,11 +1,11 @@
 // Archivo: lib/widgets/modal_detalle_ventas.dart
 
 import 'package:flutter/material.dart';
-import '../data/mock_database.dart';
-import '../core/app_theme.dart';
-import '../widgets/tarjeta_resumen_caja.dart';
+import '../../data/mock_database.dart';
+import '../../core/app_theme.dart';
+import 'tarjeta_resumen_caja.dart';
 // IMPORTAMOS TU FORMATEADOR (asumiendo que está en la carpeta utils)
-import '../utils/app_formatters.dart'; 
+import '../../utils/app_formatters.dart'; 
 
 class ModalDetalleVentas extends StatefulWidget {
   final List<Map<String, dynamic>> productosDisponibles;

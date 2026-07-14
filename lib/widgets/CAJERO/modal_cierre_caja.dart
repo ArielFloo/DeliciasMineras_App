@@ -1,7 +1,7 @@
 // Archivo: lib/widgets/modal_cierre_caja.dart
 
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
+import '../../core/app_theme.dart';
 
 class ModalCierreCaja extends StatelessWidget {
   final String tiempoTranscurrido;

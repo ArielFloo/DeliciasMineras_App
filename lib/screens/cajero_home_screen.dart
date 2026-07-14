@@ -5,16 +5,17 @@ import '../widgets/modal_pago_dialog.dart';
 import '../core/app_theme.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
-import '../widgets/tarjeta_resumen_caja.dart';
-import '../widgets/panel_control_cajero.dart';
-import '../widgets/buscador_productos_dialog.dart';
-import '../widgets/buscador_clientes_dialog.dart';
-import '../widgets/modal_detalle_ventas.dart';
+import '../widgets/CAJERO/tarjeta_resumen_caja.dart';
+import '../widgets/CAJERO/panel_control_cajero.dart';
+import '../widgets/CAJERO/buscador_productos_dialog.dart';
+import '../widgets/CAJERO/buscador_clientes_dialog.dart';
+import '../widgets/CAJERO/modal_detalle_ventas.dart';
 import '../data/mock_database.dart';
 import '../utils/app_formatters.dart'; 
 import '../utils/local_storage.dart';
-import '../widgets/modal_turno_pendiente.dart';
-import '../widgets/modal_cierre_caja.dart';
+import '../widgets/CAJERO/modal_turno_pendiente.dart';
+import '../widgets/CAJERO/modal_cierre_caja.dart';
+import '../widgets/modal_validacion_identidad.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -589,20 +590,40 @@ Future<void> _inicializarCaja() async {
         ),
       );
 
-      // Evaluamos la decisión del cajero
+// Evaluamos la decisión del cajero
       if (result == 'REANUDAR') {
+        
+        // LLAMADA AL NUEVO MODAL DE SEGURIDAD
+        final bool? autorizado = await showDialog<bool>(
+          context: context,
+          builder: (context) => ModalValidacionIdentidad(
+            cajeroActual: _cajeroActual!, // Le pasas el objeto Empleado que ya tienes en tu State
+          ),
+        );
+
+        if (autorizado != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Operación cancelada. No se pudo reanudar la caja.'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+          // Volvemos a mostrar el menú de turno pendiente
+          return _inicializarCaja(); 
+        }
+
+        // Si la clave fue correcta, restauramos el estado normalmente
         setState(() {
           _turnoId = sesionLocal['turnoId'];
           _horaInicioTurno = sesionLocal['horaInicio'];
           
-      // ¡RESTAURAMOS AL CAJERO CON TU MODELO REAL!
-      _cajeroActual ??= Cajero(
-        id: sesionLocal['cajeroId'] ?? 'EMP-DEFAULT',
-        nombre: sesionLocal['cajeroNombre'] ?? 'Cajero',
-        rut: sesionLocal['cajeroRut'] ?? '', // Campo requerido por la clase Empleado
-        rol: 'Cajero', // Usamos 'tipo' en lugar de 'rol' según tu modelo
-        idLocal: sesionLocal['idLocal'] ?? 1, password: '', // ¡El ID del local que nos faltaba!
-      );
+          _cajeroActual ??= Cajero(
+            id: sesionLocal['cajeroId'] ?? 'EMP-DEFAULT',
+            nombre: sesionLocal['cajeroNombre'] ?? 'Cajero',
+            rut: sesionLocal['cajeroRut'] ?? '', 
+            rol: 'Cajero', 
+            idLocal: sesionLocal['idLocal'] ?? 1, password: '', 
+          );
           
           final Map<int, double> carritoGuardado = sesionLocal['carrito'];
           if (carritoGuardado.isNotEmpty) {
