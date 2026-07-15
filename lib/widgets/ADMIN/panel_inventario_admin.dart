@@ -94,7 +94,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppTheme.errorColor.withOpacity(0.1),
+                  color: AppTheme.errorColor.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -215,9 +215,9 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
     }
 
     if (_ordenStock == 'Menor Stock (Crítico)') {
-      filtrados.sort((a, b) => (a['stock'] as int).compareTo(b['stock'] as int));
+      filtrados.sort((a, b) => (a['stock'] as num).compareTo(b['stock'] as num));
     } else if (_ordenStock == 'Mayor Stock') {
-      filtrados.sort((a, b) => (b['stock'] as int).compareTo(a['stock'] as int));
+      filtrados.sort((a, b) => (b['stock'] as num).compareTo(a['stock'] as num));
     }
 
     return filtrados;
@@ -444,7 +444,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                 )
               : SingleChildScrollView(
                   child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(AppTheme.adminSidebar.withOpacity(0.05)),
+                    headingRowColor: WidgetStateProperty.all(AppTheme.adminSidebar.withValues(alpha: 0.05)),
                     columns: const [
                       DataColumn(label: Text('SKU', style: TextStyle(fontWeight: FontWeight.bold))),
                       DataColumn(label: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -455,7 +455,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                       DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold))),
                     ],
                     rows: listaParaMostrar.map((prod) {
-                      final int stock = prod['stock'];
+                      final num stock = prod['stock'];
                       
                       Color estadoColor;
                       String estadoTexto;
@@ -481,7 +481,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: estadoColor.withOpacity(0.1),
+                                color: estadoColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
