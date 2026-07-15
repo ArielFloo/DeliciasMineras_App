@@ -20,16 +20,17 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscureText = true; 
 
-  void _ejecutarLogin() async {
+void _ejecutarLogin() async {
     if (!_formKey.currentState!.validate()) {
       return; 
     }
 
     setState(() => _isLoading = true);
+    String rutLimpio = _rutCtrl.text.trim().replaceAll('.', '').toUpperCase();
 
-    // Llamamos al servicio de autenticación (sin pasarle el rol)
+    // Llamamos al servicio de autenticación con el RUT ya limpio
     final usuarioLogueado = await AuthService().login(
-      _rutCtrl.text.trim(), 
+      rutLimpio, 
       _passwordCtrl.text.trim(),
     );
 
@@ -37,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (usuarioLogueado != null) {
-      // Si el login es exitoso, ruteamos según el rol de la base de datos
+      // Si el login es exitoso... (el resto queda igual)
       switch (usuarioLogueado.rol) {
         case 'Cajero':
           context.go('/cajero');
@@ -50,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
       }
     } else {
-      // Si falla, mostramos error
+      // Si falla... (el resto queda igual)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('RUT o contraseña incorrectos.'),
@@ -240,13 +241,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     Divider(color: Colors.black26),
                     Text('👤 Cajero:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 21.936.615-9 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 11.000.054-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     
                     Text('🚚 Repartidor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 22.222.222-2 | Pass: 123\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 11.000.056-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     
                     Text('⚙️ Administrador:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 33.333.333-3 | Pass: 123', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 33.333.333-3 | Pass: 1234', style: TextStyle(fontSize: 12, color: Colors.black87)),
                   ],
                 ),
               ),

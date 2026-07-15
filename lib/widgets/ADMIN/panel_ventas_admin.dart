@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
 import '../../data/mock_database.dart';
 import '../../utils/app_formatters.dart';
+import '../ticket_térmico.dart';
 
 class PanelVentasAdmin extends StatefulWidget {
   const PanelVentasAdmin({super.key});
@@ -12,6 +13,8 @@ class PanelVentasAdmin extends StatefulWidget {
 
 class _PanelVentasAdminState extends State<PanelVentasAdmin> {
   List<Map<String, dynamic>> _ventas = [];
+  // NUEVA VARIABLE: Para guardar el catálogo de productos
+  List<Map<String, dynamic>> _productosDisponibles = []; 
   bool _cargando = true;
 
   // Variables de Filtro y Búsqueda
@@ -20,7 +23,7 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
   String _filtroPago = 'Todos';
 
   final List<String> _opcionesDocumento = ['Todos', 'Boleta', 'Factura'];
-  final List<String> _opcionesPago = ['Todos', 'Efectivo', 'Tarjeta'];
+  final List<String> _opcionesPago = ['Todos', 'Efectivo', 'Tarjeta', 'Transferencia'];
 
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -34,20 +37,35 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
     setState(() => _cargando = true);
     try {
       // Usamos el método que simula traer todo el historial
-      final datos = await MockDatabase.instancia.obtenerVentasDelDia();
+      final datosVentas = await MockDatabase.instancia.obtenerVentasDelDia();
+      
+      // 2. CARGAMOS LOS PRODUCTOS PARA RECONSTRUIR EL TICKET
+      final datosProductos = await MockDatabase.instancia.obtenerProductos();
       
       // Ordenamos de la más reciente a la más antigua
-      datos.sort((a, b) => (b['hora'] as DateTime).compareTo(a['hora'] as DateTime));
+      datosVentas.sort((a, b) => (b['hora'] as DateTime).compareTo(a['hora'] as DateTime));
 
       if (mounted) {
         setState(() {
-          _ventas = datos;
+          _ventas = datosVentas;
+          _productosDisponibles = datosProductos;
           _cargando = false;
         });
       }
     } catch (e) {
       print("Error cargando ventas: $e");
     }
+  }
+
+  // NUEVA FUNCIÓN: Llama al modal del ticket
+  void _mostrarBoletaReconstruida(Map<String, dynamic> venta) {
+    showDialog(
+      context: context,
+      builder: (context) => TicketTermico(
+        datosVenta: venta,
+        productosDisponibles: _productosDisponibles,
+      ),
+    );
   }
 
   // Motor de Filtrado en vivo
@@ -67,11 +85,19 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
       filtrados = filtrados.where((v) => v['documento'] == _filtroDocumento).toList();
     }
 
-    // 3. Filtro por Pago
+    // 3. Filtro por Pago (Corregido y robusto)
     if (_filtroPago != 'Todos') {
       filtrados = filtrados.where((v) {
-        final metodo = v['metodo_pago'] ?? 'Tarjeta';
-        return metodo == _filtroPago;
+        // En tu mock_database la clave se registra como 'metodo'
+        final String metodo = v['metodo'] ?? 'Tarjeta'; 
+
+        if (_filtroPago == 'Efectivo') {
+          return metodo == 'Efectivo';
+        } else if (_filtroPago == 'Tarjeta') {
+          // Si el admin busca "Tarjeta", filtramos por Debito o Credito
+          return metodo == 'Debito' || metodo == 'Credito' || metodo == 'Tarjeta';
+        }
+        return true;
       }).toList();
     }
 
@@ -297,7 +323,7 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
                       final esFactura = venta['documento'] == 'Factura';
                       final colorDoc = esFactura ? AppTheme.infoColor : AppTheme.primaryColor;
 
-                      final metodoPago = venta['metodo_pago'] ?? 'Tarjeta';
+                      final String metodoPago = venta['metodo'] ?? 'Tarjeta';
 
                       return DataRow(
                         cells: [
@@ -329,15 +355,12 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
                               ],
                             )
                           ),
-                          DataCell(Text('\$${AppFormatters.formatearDinero(venta['total'])}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                          DataCell(Text('\$${AppFormatters.formatearDinero((venta['total'] as num).toInt())}', style: const TextStyle(fontWeight: FontWeight.bold))),
                           DataCell(
                             IconButton(
                               icon: const Icon(Icons.visibility_rounded, color: AppTheme.adminSidebar, size: 20),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Ver detalle del documento (Próximamente)')),
-                                );
-                              },
+                              // 3. REEMPLAZAMOS EL SNACKBAR POR LA LLAMADA AL TICKET
+                              onPressed: () => _mostrarBoletaReconstruida(venta),
                               tooltip: 'Ver Detalle',
                             ),
                           ),
