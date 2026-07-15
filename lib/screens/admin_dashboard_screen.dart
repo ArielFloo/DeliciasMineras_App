@@ -9,6 +9,7 @@ import '../utils/app_formatters.dart';
 import '../widgets/ADMIN/admin_breadcrumbs.dart';
 import '../widgets/ADMIN/panel_ventas_admin.dart';
 import '../widgets/ADMIN/panel_usuarios_admin.dart';
+import '../widgets/ADMIN/panel_clientes_admin.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -284,6 +285,17 @@ Future<void> _cargarMetricas() async {
                   }),
                 ),
                 
+                _ItemMenuLateral(
+                  titulo: 'Clientes',
+                  icono: Icons.business_center_rounded,
+                  estaActivo: _indiceSeleccionado == 4,
+                  mostrarTexto: _sidebarExpandido,
+                  onTap: () => setState(() {
+                    _indiceSeleccionado = 4;
+                    _filtroParaInventario = 'Predeterminado';
+                  }),
+                ),
+                
                 const Spacer(),
                 const Divider(color: Colors.white12, height: 1),
                 const SizedBox(height: 8),
@@ -326,14 +338,16 @@ Future<void> _cargarMetricas() async {
                             },
                           ),
                           const SizedBox(width: 8),
-                        Text(
+                      Text(
                         _indiceSeleccionado == 0 
                             ? 'Tablero Principal' 
                             : _indiceSeleccionado == 1 
                                 ? 'Control de Inventario' 
                                 : _indiceSeleccionado == 2
                                     ? 'Historial de Ventas'
-                                    : 'Personal & Turnos',
+                                    : _indiceSeleccionado == 3 
+                                        ? 'Personal & Turnos'
+                                        : 'Cartera de Clientes Mayoristas',
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                         ],
@@ -434,6 +448,7 @@ Future<void> _cargarMetricas() async {
                         // PESTAÑA 2: HISTORIAL DE VENTAS
                         const PanelVentasAdmin(),
                         const PanelUsuariosAdmin(),
+                        const PanelClientesAdmin()
                       ],
                       
                     ),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../utils/app_formatters.dart';
+import '../../utils/app_formatters.dart';
 
 class TarjetaResumenCaja extends StatelessWidget {
   final String titulo;

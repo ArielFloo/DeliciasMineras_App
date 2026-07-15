@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
+import '../../core/app_theme.dart';
 
 class BuscadorClientesDialog extends StatefulWidget {
   final List<Map<String, dynamic>> clientes;

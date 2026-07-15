@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart';
-import '../services/auth_service.dart';
+import '../../core/app_theme.dart';
+import '../../services/auth_service.dart';
 
 class PanelControlCajero extends StatelessWidget {
   final Map<String, dynamic>? clienteSeleccionado;
