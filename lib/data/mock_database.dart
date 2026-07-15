@@ -35,6 +35,12 @@ class MockDatabase {
   // Nueva tabla para manejar las sesiones de caja
   final List<Map<String, dynamic>> _turnos = [];
 
+  // ==========================================
+  // VEHICULOS DE LA COMPAÑIA
+  // ==========================================
+  final List<Map<String, dynamic>> _vehiculos = [
+  {'patente': 'XH6640', 'esta_disponible': true, 'tipo': 'Particular'}];
+
   DateTime? _ultimoReseteo;
 
   void _verificarReseteoDiario() {
