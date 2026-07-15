@@ -48,12 +48,74 @@
             border-radius: 5px;
             font-family: sans-serif;
         }
+        #sqlInput {
+            width: 100%;
+            height: 380px;
+            background: #1e1e1e;
+            color: #50fa7b;
+            font-family: 'Fira Code', Consolas, Monaco, monospace;
+            font-size: 16px;
+            padding: 15px;
+            border: 2px solid #6272a4;
+            border-radius: 8px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            resize: none; 
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        #output {
+            height: 380px;    
+            max-height: 380px;
+            overflow-y: auto;
+            font-size: 0.4em;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: #282a36;
+        }
+
+        #output table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #282a36;
+            border: 1px solid #44475a;
+            margin: 0 auto;
+        }
+
+        #output th {
+            background-color: #44475a;
+            color: #8be9fd; 
+            padding: 8px;
+            font-weight: bold;
+            border: 1px solid #44475a;
+            text-align: center;
+        }
+
+        #output td {
+            border: 1px solid #44475a;
+            padding: 6px 12px;
+            color: #f8f8f2;
+            text-align: left;
+        }
+        #output .error {
+            color: #ff5555; 
+            background: #282a36;
+            padding: 15px;
+            border-left: 5px solid #ff5555;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.8em;
+            text-align: left;
+            margin: 0 auto;
+            width: 80%;
+        }
     </style>
 </head>
 <body>
 
     <div class="loader-wrapper">
-        <img src="assets/logo.png" alt="Cargando..." class="loader-logo">
+        <img src="assest_ppt/logo.png" alt="Cargando..." class="loader-logo">
     </div>
 
 
@@ -91,13 +153,16 @@
             <section>
                 <section>
                     <h2>1. Introducción y Motivación</h2>
-                    <p>Definición del problema y justificación del desarrollo del sistema.</p>
+                    <ul>
+                        <li>la panadería y almacén <strong>Delicias Mineras</strong>, es un negocio cuyo flujo operativo dual (venta minorista y distribución mayorista) demanda una infraestructura centralizada y eficiente</li>
+                        <li>Pese a contar con una base de datos, esta es muy antigua, lo que dificulta trabajar con ella comodamente</li>
+                    </ul>
                 </section>
                 <section>
-                    <h2>Valor y Beneficio Global</h2>
                     <ul>
-                        <li><strong>Para los Usuarios:</strong> Explicación clara de la optimización del flujo de trabajo y accesibilidad a la información.</li>
-                        <li><strong>Para los Clientes:</strong> Retorno de inversión, escalabilidad y consistencia en la persistencia de sus datos.</li>
+                        <li>Nuestro proyecto fue orientado a actualizar su sistema de base de datos, para facilitar el almacenamiento de datos de caja (boletas y compras).</li>
+                        <li>Además de poder integrar una forma de visualizar la cantidad de stock de un producto, datos detallados sobre los envios, y más</li>
+                        <li>Todo orientado en facilitar el trabajo de los trabajadores y de la panadería</li>
                     </ul>
                 </section>
             </section>
@@ -190,7 +255,6 @@
                         </li>
                     </ul>
                 </section>
-
                 <section>
                     <h2>Modelo Relacional</h2>
                     <p style="font-size: 0.8em; color: #888;">Parte 3: Logística y Personal</p>
@@ -410,32 +474,64 @@
             <section>
                 <section>
                     <h2>4. Demostración del Sistema</h2>
-                    <p>Interfaz desarrollada Ad-Hoc y manipulación de datos en tiempo real.</p>
+                    <div style="display: flex; justify-content: space-around; font-family: sans-serif; line-height: 3.6;">
+                        <div>
+                            <img src="assest_ppt/1.png">
+                        </div>
+                        <div>
+                            <img src="assest_ppt/2.png">
+                        </div>
+                    </div>
                 </section>
                 <section>
-                    <h2>Transacciones No Triviales</h2>
-                    <ul>
-                        <li><strong>Ingresos Complejos:</strong> Inserción con triggers asociados.</li>
-                        <li><strong>Actualizaciones y Eliminaciones cascada:</strong> Evidencia inmediata del impacto directo en la base de datos PostgreSQL.</li>
-                    </ul>
+                    <div style="display: flex; justify-content: space-around; font-family: sans-serif; line-height: 1.6;">
+                        <div>
+                            <img src="assest_ppt/3.png">
+                        </div>
+                        <div>
+                            <img src="assest_ppt/4.png">
+                        </div>
+                    </div>
                 </section>
                 <section>
-                    <h2>Consultas Funcionales (PostgreSQL)</h2>
-                    <p>Ejecución de las consultas SQL estipuladas en los requerimientos del sistema con salidas reales en consola/interfaz.</p>
+                    <h2>Consultas Funcionales</h2>
+                    <div style="display: flex; gap: 30px; align-items: flex-start; justify-content: center; width: 90%; margin: 0 auto;">
+                        
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                            <textarea id="sqlInput" style="width: 100%; margin: 0;">---cualidades Clientes han realizado más coompras---
+                SELECT c.nombrecliente AS nombrecliente, com.rutcliente AS rut, COUNT(com.idcompra) AS total_compras
+                FROM deliciasMineras.compra com
+                JOIN deliciasMineras.cliente c ON com.rutcliente = c.rut
+                GROUP BY c.nombrecliente, com.rutcliente
+                ORDER BY total_compras DESC
+                LIMIT 5;</textarea>
+                            <button onclick="ejecutarSQL()" style="width: auto; margin-top: 15px; padding: 10px 30px;">Ejecutar Consulta</button>
+                        </div>
+
+                        <div style="flex: 1; display: flex; flex-direction: column; width: 100%;">
+                            <div id="output" style="width: 100%; margin: 0;">
+                                <div style="border: 2px dashed #6272a4; padding: 40px; border-radius: 8px; color: #6272a4; font-size: 0.6em; text-align: center;">
+                                    Los resultados...
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </section>
             </section>
 
             <section>
-                <h2>5. Interrogación Técnica</h2>
-                <p>Demostración práctica en vivo con ejemplos directos sobre la Base de Datos.</p>
+                <h2>5. Interfaz Grafica</h2>
+                <p>Se desarrollo una aplicación que permitiria comunicarse directamente con la base de datos sin tener que usar directamente consultas SQL</p>
                 <a href="http://localhost:59344/">Delicias Mineras</a>
             </section>
 
         </div>
     </div>
-
+   
+    <!--Scrip para que sirva como diapositivas-->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.5.0/reveal.min.js"></script>
-    
+    <!--Scrip para el logo cargando-->
     <script>
         Reveal.initialize({
             hash: true,
@@ -450,6 +546,7 @@
             }, 2000); 
         });
     </script>
+    <!--Este scrip maneha la pantalla completa-->
     <script>
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
@@ -457,6 +554,43 @@
                     .catch(err => alert(`Error al intentar activar pantalla completa: ${err.message}`));
             } else {
                 document.exitFullscreen();
+            }
+        }
+    </script>
+    <!--Este crip maneja la terminal sql-->
+    <script> 
+        async function ejecutarSQL() {
+            const sql = document.getElementById('sqlInput').value;
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = 'Ejecutando...';
+
+            try {
+                const response = await fetch('http://localhost:3000/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql: sql })
+                });
+                const result = await response.json();
+                if (!result.success) {outputDiv.innerHTML = `<div class="error"><strong>Error:</strong> ${result.error}</div>`;return;}
+
+                if (result.data.length === 0) {outputDiv.innerHTML = '<em>Consulta ejecutada con éxito. Cero filas devueltas o comando sin retorno (INSERT/UPDATE/CREATE).</em>';return;}
+                let html = '<table><thead><tr>';
+                const columnas = Object.keys(result.data[0]);
+                columnas.forEach(col => {
+                    html += `<th>${col}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                result.data.forEach(row => {
+                    html += '<tr>';
+                    columnas.forEach(col => {
+                        html += `<td>${row[col] !== null ? row[col] : '<i>null</i>'}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                outputDiv.innerHTML = html;
+            } catch (err) {
+                outputDiv.innerHTML = `<div class="error"><strong>Error de conexión:</strong> No se pudo conectar al servidor puente. Asegúrate de haber iniciado el backend con 'node server.js'.</div>`;
             }
         }
     </script>
