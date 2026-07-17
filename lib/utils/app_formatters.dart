@@ -12,6 +12,28 @@ class AppFormatters {
   }
 
   // ==========================================
+  // FORMATEO DE RUT (String a Formato Visual)
+  // ==========================================
+  static String formatearRut(String rut) {
+    // Limpiamos todo menos números y la letra K
+    String rutLimpio = rut.replaceAll(RegExp(r'[^0-9kK]'), '').toUpperCase();
+    if (rutLimpio.length <= 1) return rut; // Si está vacío o incompleto, lo devolvemos tal cual
+
+    // Separamos el DV del cuerpo
+    String dv = rutLimpio.substring(rutLimpio.length - 1);
+    String cuerpo = rutLimpio.substring(0, rutLimpio.length - 1);
+
+    // Reutilizamos tu lógica de regex para ponerle los puntos al cuerpo
+    String cuerpoFormateado = cuerpo.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
+      (Match m) => '${m[1]}.'
+    );
+
+    // Unimos todo con el guion
+    return '$cuerpoFormateado-$dv';
+  }
+
+  // ==========================================
   // VALIDADOR MATEMÁTICO DE RUT (Algoritmo Módulo 11)
   // ==========================================
   static bool validarRut(String rut) {

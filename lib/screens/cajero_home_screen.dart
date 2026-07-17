@@ -10,12 +10,13 @@ import '../widgets/CAJERO/panel_control_cajero.dart';
 import '../widgets/CAJERO/buscador_productos_dialog.dart';
 import '../widgets/CAJERO/buscador_clientes_dialog.dart';
 import '../widgets/CAJERO/modal_detalle_ventas.dart';
-import '../data/mock_database.dart';
+import '../services/database_service.dart';
 import '../utils/app_formatters.dart'; 
 import '../utils/local_storage.dart';
 import '../widgets/CAJERO/modal_turno_pendiente.dart';
 import '../widgets/CAJERO/modal_cierre_caja.dart';
 import '../widgets/modal_validacion_identidad.dart';
+import '../models/empleado.dart';
 
 class CajeroHomeScreen extends StatefulWidget {
   const CajeroHomeScreen({super.key});
@@ -51,15 +52,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _inicializarCaja();
     _focusNodeGlobal.requestFocus(); 
-    _cargarDatosDeServidor();
+    _inicializarCaja();
   }
 
   Future<void> _cargarDatosDeServidor() async {
     try {
       final prods = await MockDatabase.instancia.obtenerProductos();
       final clients = await MockDatabase.instancia.obtenerClientes();
+      
+      if (!mounted) return; 
+
       setState(() {
         _productosDisponibles = prods;
         _clientesMayoristas = clients;
@@ -84,7 +87,7 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     });
   }
 
-  void _agregarAlCarrito(Map<String, dynamic> producto, {double cantidad = 1.0}) {
+void _agregarAlCarrito(Map<String, dynamic> producto, {double cantidad = 1.0}) {
     setState(() {
       int sku = producto['sku'];
       num stockActual = producto['stock'] as num; 
@@ -93,24 +96,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       // Validación limpia usando la categoría de tu base de datos
       bool esGranel = producto['categoria'] == 'Panadería';
 
-      if (cantidadEnCarrito + cantidad <= stockActual || esGranel) {
-        _carrito[sku] = cantidadEnCarrito + cantidad;
-        _multiplicador = 1; 
+      // NOTA: Si la cantidad ya viene con decimales (desde la balanza), respetamos el valor exacto del escáner
+      // Si viene del multiplicador (entero), sumamos el multiplicador.
+      _carrito[sku] = cantidadEnCarrito + cantidad;
+      _multiplicador = 1; // Reseteamos el multiplicador para la próxima venta
 
-        if (cantidadEnCarrito + cantidad > stockActual) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Aviso: Vendiendo ${producto['nombre']} en negativo.'),
-              backgroundColor: AppTheme.warningColor, 
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      } else {
+      if (cantidadEnCarrito + cantidad > stockActual && !esGranel) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Stock insuficiente. Solo quedan $stockActual de ${producto['nombre']}.'),
-            backgroundColor: AppTheme.errorColor,
+            content: Text('Aviso: Vendiendo ${producto['nombreproducto'] ?? producto['nombre'] ?? 'Producto'} en negativo.'),
+            backgroundColor: AppTheme.warningColor, 
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -129,34 +125,57 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     _sincronizarEstadoCarrito();
   }
 
-  void _procesarCodigoEscaneado(String input) {
+void _procesarCodigoEscaneado(String input) {
     if (input.isEmpty) return;
     input = input.trim();
 
-    if (input.length == 13 && input.startsWith('20')) {
+    // Verificamos si es etiqueta de balanza (13 dígitos, empieza con 20 o 21)
+    if (input.length == 13 && (input.startsWith('20') || input.startsWith('21'))) {
+      
+      // 1. Extraemos el prefijo y el código corto
+      String prefijo = input.substring(0, 2);
+      String pluBalanzaStr = input.substring(2, 6); 
+      int pluBalanza = int.parse(pluBalanzaStr);
+      
+      // 2. Aplicamos la lógica de tu grupo: Familia 20 vs Familia 21
+      int skuRealBuscado;
+      if (prefijo == '20') {
+        skuRealBuscado = 2000000 + pluBalanza; // A granel (ej: 2000005)
+      } else {
+        skuRealBuscado = 2100000 + pluBalanza; // Unitario (ej: 2100005)
+      }
 
-      String skuString = input.substring(2, 6); 
-      String pesoGramosString = input.substring(6, 12); 
+      // 3. Extraemos el valor (peso o cantidad)
+      String valorString = input.substring(6, 11); 
+      double cantidadFinal;
 
-      int skuBuscado = int.parse(skuString); 
-      double pesoEnKilos = int.parse(pesoGramosString) / 1000.0; 
+      if (prefijo == '20') {
+        cantidadFinal = int.parse(valorString) / 1000.0; 
+      } else {
+        cantidadFinal = int.parse(valorString).toDouble();
+        if (cantidadFinal == 0) cantidadFinal = 1.0; 
+      }
 
-      final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
+      final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuRealBuscado);
+      
       if (index != -1) {
-        _agregarAlCarrito(_productosDisponibles[index], cantidad: pesoEnKilos);
+        _agregarAlCarrito(_productosDisponibles[index], cantidad: cantidadFinal);
+        String unidadTexto = input.startsWith('20') ? 'kg' : 'un';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${_productosDisponibles[index]['nombre']} pesado: $pesoEnKilos kg'),
+            content: Text('${_productosDisponibles[index]['nombre']} agregado: $cantidadFinal $unidadTexto'),
             backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 1),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Producto de balanza no encontrado.'), backgroundColor: AppTheme.errorColor),
+           SnackBar(content: Text('Error: Producto (SKU BD: $skuRealBuscado) no encontrado.'), backgroundColor: AppTheme.errorColor),
         );
       }
     } else {
+      // Flujo normal para pistolear un producto de pasillo directo
       _buscarYAgregarPorSKU(input);
     }
     
@@ -164,15 +183,23 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   }
 
   void _buscarYAgregarPorSKU(String input) {
-    final int? skuBuscado = int.tryParse(input);
-    if (skuBuscado == null) return;
+    final int? numeroIngresado = int.tryParse(input);
+    if (numeroIngresado == null) return;
+
+    int skuBuscado = numeroIngresado;
+
+    // Si el cajero digita un código corto (menor a 2 millones), le sumamos la base
+    if (numeroIngresado < 2000000) {
+      skuBuscado = 2000000 + numeroIngresado;
+    }
 
     final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
+    
     if (index != -1) {
       _agregarAlCarrito(_productosDisponibles[index], cantidad: _multiplicador.toDouble());
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('SKU $skuBuscado no encontrado en el sistema.')),
+        SnackBar(content: Text('Código $numeroIngresado (BD: $skuBuscado) no encontrado en el sistema.')),
       );
     }
   }
@@ -574,30 +601,50 @@ Future<void> _inicializarCaja() async {
     // 1. Cargamos productos y clientes para poder renderizar
     await _cargarDatosDeServidor();
 
-    // 2. Revisamos si hay una sesión guardada físicamente en el equipo
+    // 2. Revisamos si hay una sesión guardada físicamente en el disco
     final sesionLocal = await LocalStorage.obtenerSesionCaja();
+
+    // ==========================================
+    // PROTECCIÓN ANTI-F5: Si la RAM se borró y no hay turno local, al Login.
+    // ==========================================
+    if (_cajeroActual == null && sesionLocal == null) {
+      print("Intento de acceso sin sesión. Redirigiendo al login...");
+      if (mounted) context.go('/');
+      return;
+    }
 
     if (sesionLocal != null) {
       if (!mounted) return;
       
-      // LLAMADA LIMPIA AL NUEVO WIDGET
+      // ==========================================
+      // RESCATE POST-F5: Reconstruimos al cajero desde el disco 
+      // ANTES de abrir los modales para evitar que sea null
+      // ==========================================
+      _cajeroActual ??= Cajero(
+        id: sesionLocal['cajeroId'] ?? 'EMP-DEFAULT',
+        nombre: sesionLocal['cajeroNombre'] ?? 'Cajero',
+        rut: sesionLocal['cajeroRut'] ?? '', 
+        rol: 'Cajero', 
+        idLocal: sesionLocal['idLocal'] ?? 1, 
+        password: '', 
+      );
+      
       final result = await showDialog<String>(
         context: context,
         barrierDismissible: false, 
         builder: (context) => ModalTurnoPendiente(
-          horaInicio: sesionLocal['horaInicio'],
+          horaInicio: DateTime.parse(sesionLocal['horaInicio'].toString()),
           cantidadProductos: (sesionLocal['carrito'] as Map).length,
         ),
       );
 
-// Evaluamos la decisión del cajero
+      // Evaluamos la decisión del cajero
       if (result == 'REANUDAR') {
         
-        // LLAMADA AL NUEVO MODAL DE SEGURIDAD
         final bool? autorizado = await showDialog<bool>(
           context: context,
           builder: (context) => ModalValidacionIdentidad(
-            cajeroActual: _cajeroActual!, // Le pasas el objeto Empleado que ya tienes en tu State
+            cajeroActual: _cajeroActual!, // ¡Ya no dará error porque lo rescatamos arriba!
           ),
         );
 
@@ -608,26 +655,20 @@ Future<void> _inicializarCaja() async {
               backgroundColor: AppTheme.errorColor,
             ),
           );
-          // Volvemos a mostrar el menú de turno pendiente
           return _inicializarCaja(); 
         }
 
-        // Si la clave fue correcta, restauramos el estado normalmente
+        // Restauramos el estado normalmente
         setState(() {
           _turnoId = sesionLocal['turnoId'];
-          _horaInicioTurno = sesionLocal['horaInicio'];
+          _horaInicioTurno = DateTime.parse(sesionLocal['horaInicio'].toString());
           
-          _cajeroActual ??= Cajero(
-            id: sesionLocal['cajeroId'] ?? 'EMP-DEFAULT',
-            nombre: sesionLocal['cajeroNombre'] ?? 'Cajero',
-            rut: sesionLocal['cajeroRut'] ?? '', 
-            rol: 'Cajero', 
-            idLocal: sesionLocal['idLocal'] ?? 1, password: '', 
-          );
-          
-          final Map<int, double> carritoGuardado = sesionLocal['carrito'];
+          final Map<dynamic, dynamic> carritoGuardado = sesionLocal['carrito'];
           if (carritoGuardado.isNotEmpty) {
-            _carrito.addAll(carritoGuardado);
+            // Aseguramos que los tipos se respeten (int para SKU, double para cantidad)
+            carritoGuardado.forEach((key, value) {
+              _carrito[int.parse(key.toString())] = (value as num).toDouble();
+            });
           }
         });
         _iniciarContadorTiempo();
@@ -636,23 +677,33 @@ Future<void> _inicializarCaja() async {
         await MockDatabase.instancia.cerrarTurno(sesionLocal['turnoId']);
         await LocalStorage.borrarSesionCaja();
         
-        final String empleadoId = _cajeroActual?.id ?? 'EMP-DEFAULT';
+        // Si veníamos de un F5 (AuthService no tiene sesión real activa), 
+        // lo mandamos al login al cerrar el turno pendiente.
+        if (AuthService().currentUser == null) {
+          if (mounted) context.go('/');
+          return;
+        }
+
+        final String empleadoId = _cajeroActual!.id;
         await _abrirNuevoTurno(empleadoId);
       }
       
     } else {
-      final String empleadoId = _cajeroActual?.id ?? 'EMP-DEFAULT';
+      // Flujo normal de inicio de turno fresco (viene directo del Login)
+      final String empleadoId = _cajeroActual!.id;
       await _abrirNuevoTurno(empleadoId);
     }
   }
 
-  Future<void> _abrirNuevoTurno(String empleadoId) async {
+Future<void> _abrirNuevoTurno(String empleadoId) async {
     final nuevoId = await MockDatabase.instancia.abrirTurno(empleadoId);
     setState(() {
       _turnoId = nuevoId;
       _horaInicioTurno = DateTime.now();
     });
     _iniciarContadorTiempo();
+    
+    _sincronizarEstadoCarrito(); 
   }
 
   void _iniciarContadorTiempo() {
@@ -878,88 +929,101 @@ void _sincronizarEstadoCarrito() {
                                 style: TextStyle(fontSize: 20, color: colorScheme.outline), 
                               ),
                             )
-                          : ListView.separated(
-                              itemCount: _carrito.length,
-                              separatorBuilder: (context, index) => const Divider(height: 1),
-                              itemBuilder: (context, index) {
-                                final sku = _carrito.keys.elementAt(index);
-                                final cantidad = _carrito[sku]!;
-                                final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
-                                
-                                final int subtotal = ((prod['precio'] as num) * cantidad).round();
-                                // 1. Determinamos si el producto se vende por peso
-                                // (Puedes ajustar esta validación según cómo diferencies tus productos en la BD)
-                                final bool esGranel = prod['categoria'] == 'Panadería'; 
+                              : ListView.separated(
+                                itemCount: _carrito.length,
+                                separatorBuilder: (context, index) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final sku = _carrito.keys.elementAt(index);
+                                  final cantidad = _carrito[sku]!;
+                                  final prod = _productosDisponibles.firstWhere((p) => p['sku'] == sku);
+                                  
+                                  // 1. Evaluamos de forma segura los nombres de columna de la BD
+                                  final String nombreAMostrar = prod['nombreproducto'] ?? prod['nombre'] ?? 'Producto Sin Nombre';
+                                  final int subtotal = ((prod['precio'] as num) * cantidad).round();
+                                  
+                                  // 2. LÓGICA DE VISUALIZACIÓN INTELIGENTE CON TU NUEVA CONVENCIÓN "Granel"
+                                  // Convertimos el nombre a minúsculas de forma segura para hacer la comparación
+                                  final String nombreMinuscula = nombreAMostrar.toLowerCase();
+                                  
+                                  // Es a granel si el nombre contiene "granel" o si el valor tiene decimales (por si viene de la balanza)
+                                  final bool esGranelReal = nombreMinuscula.contains('granel');
+                                  final bool tieneDecimales = (cantidad.truncateToDouble() != cantidad);
 
-                                String cantAVisualizar;
+                                  String cantAVisualizar;
 
-                                // 2. Si es a granel o si la cantidad detecta decimales (ej: 0.5)
-                                if (esGranel || cantidad.truncateToDouble() != cantidad) {
-                                  // Forzamos 3 decimales, cambiamos el punto por coma y agregamos " kg"
+                                  if (tieneDecimales || esGranelReal) {
+                                    // Formato de Peso Variable (3 decimales, coma para el mercado chileno)
+                                    cantAVisualizar = '${cantidad.toStringAsFixed(3).replaceAll('.', ',')} kg';
+                                  } else {
+                                    // Formato Unitario (Entero sin decimales)
+                                    cantAVisualizar = '${cantidad.toInt()} un';
+                                  }
 
-                                  cantAVisualizar = '${cantidad.toStringAsFixed(3).replaceAll('.', ',')} kg';
-                                } else {
-                                  // Si es un producto unitario (ej: una bebida), lo mostramos entero. 
-                                  // Opcionalmente puedes agregarle " un" al final: '${cantidad.toInt()} un'
-                                  cantAVisualizar = '${cantidad.toInt()} un';}
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        flex: 4,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(prod['nombre'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                            Text('SKU: ${prod['sku']}', style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)),
-                                          ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 1,
-                                        child: Text(
-                                          cantAVisualizar, 
-                                          textAlign: TextAlign.center, 
-                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          // Se aplica AppFormatters.formatearDinero al precio unitario
-                                          '\$${AppFormatters.formatearDinero((prod['precio'] as num).round())}', 
-                                          textAlign: TextAlign.right, 
-                                          style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant)
-                                        ),
-                                      ),
-                                      Expanded(
-                                        flex: 2,
-                                        child: Text(
-                                          // Se aplica AppFormatters.formatearDinero al subtotal
-                                          '\$${AppFormatters.formatearDinero(subtotal)}', 
-                                          textAlign: TextAlign.right, 
-                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface) 
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 48,
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: IconButton(
-                                            icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
-                                            onPressed: () => _removerDelCarrito(sku),
-                                            tooltip: 'Eliminar unidad',
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 4,
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              // 1. EL NOMBRE DEL PRODUCTO
+                                              Text(
+                                                nombreAMostrar, 
+                                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                                              ),
+                                              const SizedBox(height: 4),
+                                              // 2. EL SKU SIMPLIFICADO (Código corto visual)
+                                              Text(
+                                                'SKU: ${prod['sku'] >= 2000000 ? prod['sku'] - 2000000 : prod['sku']}', 
+                                                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant)
+                                              ), 
+                                            ],
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
+                                        Expanded(
+                                          flex: 1,
+                                          child: Text(
+                                            cantAVisualizar, 
+                                            textAlign: TextAlign.center, 
+                                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            '\$${AppFormatters.formatearDinero((prod['precio'] as num).round())}', 
+                                            textAlign: TextAlign.right, 
+                                            style: TextStyle(fontSize: 15, color: colorScheme.onSurfaceVariant)
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: Text(
+                                            '\$${AppFormatters.formatearDinero(subtotal)}', 
+                                            textAlign: TextAlign.right, 
+                                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface) 
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 48,
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: IconButton(
+                                              icon: const Icon(Icons.delete_outline, color: AppTheme.errorColor),
+                                              onPressed: () => _removerDelCarrito(sku),
+                                              tooltip: 'Eliminar unidad',
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                     ),
                     
                     if (_tipoPedido == 'despacho') ...[

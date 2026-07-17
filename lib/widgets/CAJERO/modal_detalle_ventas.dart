@@ -1,7 +1,7 @@
 // Archivo: lib/widgets/modal_detalle_ventas.dart
 
 import 'package:flutter/material.dart';
-import '../../data/mock_database.dart';
+import '../../services/database_service.dart';
 import '../../core/app_theme.dart';
 import 'tarjeta_resumen_caja.dart';
 // IMPORTAMOS TU FORMATEADOR (asumiendo que está en la carpeta utils)

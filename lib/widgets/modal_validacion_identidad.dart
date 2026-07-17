@@ -1,8 +1,8 @@
 // Archivo: lib/widgets/modal_validacion_identidad.dart
 
 import 'package:flutter/material.dart';
-import '../core/app_theme.dart'; 
-import '../services/auth_service.dart'; // Importamos el servicio de autenticación
+import '../services/auth_service.dart';
+import '../models/empleado.dart';
 
 class ModalValidacionIdentidad extends StatefulWidget {
   final Empleado cajeroActual; // Cambiamos de recibir un String a recibir el objeto Empleado completo
@@ -27,7 +27,7 @@ class _ModalValidacionIdentidadState extends State<ModalValidacionIdentidad> {
     super.dispose();
   }
 
-  void _intentarDesbloquear() {
+Future<void> _intentarDesbloquear() async {
     final pass = _passController.text.trim();
     
     if (pass.isEmpty) {
@@ -35,12 +35,15 @@ class _ModalValidacionIdentidadState extends State<ModalValidacionIdentidad> {
       return;
     }
 
-    // LÓGICA DINÁMICA: Validamos usando la propiedad de contraseña del objeto Empleado del sistema
-    // (Asumiendo que tu clase Empleado tiene un campo password o clave)
-    final passwordCorrecto = widget.cajeroActual.password; 
+    // Ponemos un pequeño mensaje de carga para que el usuario sepa que está pensando
+    setState(() => _mensajeError = 'Validando credenciales...');
+    final rutCajero = widget.cajeroActual.rut;
+    final empleadoValidado = await AuthService().login(rutCajero, pass);
 
-    if (pass == passwordCorrecto) {
-      Navigator.pop(context, true); // ¡Éxito!
+    if (empleadoValidado != null) {
+      if (mounted) {
+        Navigator.pop(context, true); // ¡Éxito!
+      }
     } else {
       setState(() {
         _mensajeError = 'Contraseña incorrecta para ${widget.cajeroActual.nombre}.';

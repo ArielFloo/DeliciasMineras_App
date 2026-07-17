@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
-import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import '../../utils/app_formatters.dart';
+import '../../models/empleado.dart';
 
 class ModalFormularioEmpleado extends StatefulWidget {
   const ModalFormularioEmpleado({super.key});
@@ -21,6 +22,11 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
   String _rolSeleccionado = 'Cajero';
   bool _guardando = false;
 
+  // Variables para el selector dinámico de locales
+  List<Map<String, dynamic>> _localesBD = [];
+  int? _localSeleccionado;
+  bool _cargandoLocales = true;
+
   // Definimos los roles con sus respectivos íconos para las tarjetas
   final List<Map<String, dynamic>> _roles = [
     {'nombre': 'Cajero', 'icono': Icons.point_of_sale_rounded},
@@ -28,9 +34,30 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
     {'nombre': 'Administrador', 'icono': Icons.admin_panel_settings_rounded},
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _cargarLocales();
+  }
+
+  // Método para extraer los locales desde Supabase
+  Future<void> _cargarLocales() async {
+    final data = await MockDatabase.instancia.obtenerLocales();
+    if (mounted) {
+      setState(() {
+        _localesBD = data;
+        if (_localesBD.isNotEmpty) {
+          _localSeleccionado = _localesBD.first['idlocal']; // Selecciona el primero por defecto
+        }
+        _cargandoLocales = false;
+      });
+    }
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     
+    // 1. Validamos matemáticamente
     if (!AppFormatters.validarRut(_rutCtrl.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('El RUT ingresado no es válido.'), backgroundColor: AppTheme.errorColor),
@@ -40,12 +67,15 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
 
     setState(() => _guardando = true);
 
+    // 2. Limpiamos los puntos para la BD. Mantenemos el formato "12345678-9"
+    String rutLimpioParaBD = _rutCtrl.text.replaceAll('.', '').toUpperCase();
+
     Empleado nuevoUsuario;
     
     if (_rolSeleccionado == 'Repartidor') {
       nuevoUsuario = Repartidor(
         id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
-        rut: _rutCtrl.text,
+        rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
         patenteVehiculoAsignado: _extraCtrl.text.trim().isEmpty ? 'Sin Asignar' : _extraCtrl.text.trim().toUpperCase(),
@@ -53,7 +83,7 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
     } else if (_rolSeleccionado == 'Administrador') {
       nuevoUsuario = Administrador(
         id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
-        rut: _rutCtrl.text,
+        rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
         nivelAcceso: int.tryParse(_extraCtrl.text) ?? 1,
@@ -61,14 +91,15 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
     } else {
       nuevoUsuario = Cajero(
         id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
-        rut: _rutCtrl.text,
+        rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
-        idLocal: int.tryParse(_extraCtrl.text) ?? 1,
+        // Usamos el ID rescatado directamente desde el selector desplegable
+        idLocal: _localSeleccionado ?? 1, 
       );
     }
 
-    bool exito = await AuthService().registrarEmpleado(nuevoUsuario);
+    bool exito = await MockDatabase.instancia.registrarNuevoEmpleado(nuevoUsuario);
 
     if (!exito && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,7 +151,7 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Registrar Personal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.secondary)),
-                        Text('Dar de alta a un nuevo colaborador', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                        Text('Formulario de ingreso a nuevo colaborador', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   ],
@@ -222,15 +253,30 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                     ),
                   )
                 else if (_rolSeleccionado == 'Cajero')
-                  TextFormField(
-                    controller: _extraCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'ID del Local Asignado',
-                      prefixIcon: const Icon(Icons.storefront_rounded),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
+                  _cargandoLocales 
+                    ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator()))
+                    : DropdownButtonFormField<int>(
+                        value: _localSeleccionado,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Asignar a Sucursal',
+                          prefixIcon: const Icon(Icons.storefront_rounded),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        items: _localesBD.map((local) {
+                          return DropdownMenuItem<int>(
+                            value: local['idlocal'],
+                            child: Text(
+                              '${local['callelocal']} ${local['numerolocal']}, ${local['ciudadlocal']}',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1, 
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _localSeleccionado = val);
+                        },
+                      ),
                 const SizedBox(height: 16),
 
                 // Contraseña provisoria

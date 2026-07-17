@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
-import '../../data/mock_database.dart';
+import '../../services/database_service.dart';
 
 class ModalFormularioProducto extends StatefulWidget {
   final Map<String, dynamic>? productoAEditar;

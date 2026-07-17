@@ -11,15 +11,6 @@ Future<void> main() async {
     url: 'https://jmuxeojoblyyskfgkmfn.supabase.co',
     anonKey: 'sb_publishable_J6YBDIB7BU9fXN9T8YdatQ_oI9C0WHW',
   );
-
-  final client = Supabase.instance.client;
-  try {
-    // Intentamos consultar la tabla de productos sin esquema (porque ya configuramos el search_path)
-    final data = await client.schema('deliciasmineras').from('producto').select().limit(1);
-    print("¡CONEXIÓN EXITOSA! Datos obtenidos: $data");
-  } catch (e) {
-    print("ERROR DE CONEXIÓN: $e");
-  }
   runApp(const DeliciasMinerasApp());
 }
 

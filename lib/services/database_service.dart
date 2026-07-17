@@ -1,12 +1,19 @@
+// ignore_for_file: unnecessary_cast
+
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'sesion_usuario.dart';
+import '../models/empleado.dart';
 
-class MockDatabase { // Mantenemos el nombre MockDatabase para no romper tus imports en las otras pantallas
+class MockDatabase { 
   static final MockDatabase instancia = MockDatabase._interno();
   MockDatabase._interno();
 
   // Cliente oficial de Supabase
   final _supabase = Supabase.instance.client;
+
+  // Constante para el RUT genérico de boletas sin nominación (Reemplázalo por el RUT "comodín" real de tu BD)
+  final String rutGenericoBoleta = '11111111-1';
 
   // ==========================================
   // MÉTODOS DE LECTURA (GETTERS A SUPABASE)
@@ -14,15 +21,21 @@ class MockDatabase { // Mantenemos el nombre MockDatabase para no romper tus imp
   
   Future<List<Map<String, dynamic>>> obtenerProductos() async {
     try {
-      // Dentro de obtenerProductos()
       final productosResponse = await _supabase.schema('deliciasmineras').from('producto').select();
-      final stockResponse = await _supabase.schema('deliciasmineras').from('ofrece').select().eq('idlocal', 1);
+      
+      // Capturamos el local de la sesión activa
+      final int localActual = SesionUsuario.instancia.idLocal ?? 1;
 
-      // Combinamos ambas tablas como si fuera un JOIN en SQL
+      // Filtramos dinámicamente por la sucursal del usuario
+      final stockResponse = await _supabase
+          .schema('deliciasmineras')
+          .from('ofrece')
+          .select()
+          .eq('idlocal', localActual);
+
       List<Map<String, dynamic>> catalogo = [];
       
       for (var prod in productosResponse) {
-        // Buscamos el stock correspondiente a este SKU
         final stockData = stockResponse.firstWhere(
           (s) => s['sku'] == prod['sku'],
           orElse: () => {'stock': 0},
@@ -40,15 +53,12 @@ class MockDatabase { // Mantenemos el nombre MockDatabase para no romper tus imp
       return catalogo;
     } catch (e) {
       print("Error leyendo productos de Supabase: $e");
-      return []; // En caso de error (sin internet), devuelve lista vacía
+      return [];
     }
   }
 
   Future<List<Map<String, dynamic>>> obtenerClientes() async {
     try {
-      // Hacemos un JOIN directo usando las herramientas de Supabase
-      // Traemos clientes empresa
-      // Dentro de obtenerClientes()
       final response = await _supabase
           .schema('deliciasmineras')
           .from('cliente')
@@ -60,7 +70,6 @@ class MockDatabase { // Mantenemos el nombre MockDatabase para no romper tus imp
            clientes.add({
              'rut': row['rut'],
              'nombre': row['nombrecliente'],
-             // Si la relación trae el campo razónsocial, lo usamos, si no ponemos genérico
              'giro': row['empresa'] != null && row['empresa'].isNotEmpty ? row['empresa'][0]['razónsocial'] : 'Mayorista',
            });
         }
@@ -72,11 +81,8 @@ class MockDatabase { // Mantenemos el nombre MockDatabase para no romper tus imp
     }
   }
 
-Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
+  Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
     try {
-      final hoy = DateTime.now();
-      
-      // 1. EL JOIN MÁGICO: Agregamos "producto(precio)" a la consulta
       final response = await _supabase
           .schema('deliciasmineras')
           .from('compra')
@@ -86,35 +92,35 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
       
       for (var venta in response) {
         final List boletas = venta['boletacompra'] as List;
-        
         if (boletas.isEmpty) continue;
         
         int totalCalculado = 0; 
         Map<int, double> carrito = {};
         
-        // 2. LA MATEMÁTICA: Calculamos el total por cada boleta
         for (var b in boletas) {
            int sku = b['sku'];
            double cant = (b['cantidad'] as num).toDouble();
            carrito[sku] = cant;
 
-           // Rescatamos el precio que trajo el JOIN desde la tabla producto
            int precioProducto = 0;
            if (b['producto'] != null && b['producto']['precio'] != null) {
              precioProducto = (b['producto']['precio'] as num).toInt();
            }
-
-           // Multiplicamos cantidad * precio y lo sumamos al total de la compra
            totalCalculado += (precioProducto * cant).toInt();
         }
 
+        // LÓGICA DE DETECCIÓN DE DOCUMENTO:
+        // Si el RUT no es el genérico de boleta (y no es nulo), entonces es Factura.
+        bool esFactura = (venta['rutcliente'] != null && venta['rutcliente'] != rutGenericoBoleta);
+
         ventasEstructuradas.add({
           'hora': DateTime(boletas[0]['anocompra'], boletas[0]['mescompra'], boletas[0]['diacompra']), 
-          'documento': venta['rutcliente'] != null ? 'Factura' : 'Boleta', 
+          'documento': esFactura ? 'Factura' : 'Boleta', 
           'metodo': venta['metodopago'],
-          'total': totalCalculado, // 3. ¡ADIÓS AL CERO! Pasamos el total real
+          'total': totalCalculado,
           'carrito': carrito,
           'id': venta['idcompra'],
+          'rutCliente': venta['rutcliente'],
         });
       }
       
@@ -128,7 +134,6 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
   // ==========================================
   // MÉTODOS DE ESCRITURA (TRANSACCIONES A SUPABASE)
   // ==========================================
-
   Future<void> registrarVenta({
     required Map<int, double> carrito, 
     required int total, 
@@ -137,52 +142,75 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
     Map<String, dynamic>? cliente,
   }) async {
     try {
-      // Generamos un ID de compra único o dejamos que PostgreSQL use un SERIAL si está configurado
-      // En este ejemplo usamos un timestamp para asegurar un int único si la DB no auto-incrementa bien por defecto
-      final int nuevoIdCompra = DateTime.now().millisecondsSinceEpoch % 10000000; 
+      // 1. Lógica Pragmática de Documentos (Blindada a prueba de nulos)
+      String rutAInsertar; 
+      
+      if (documento == 'Factura') {
+        if (cliente != null && cliente['rut'] != null && cliente['rut'].toString().trim().isNotEmpty) {
+          rutAInsertar = cliente['rut']; // Usamos el RUT real y validado
+        } else {
+          throw Exception("Error: Se requiere un Cliente Mayorista válido para emitir Factura.");
+        }
+      } else {
+        // Es Boleta. Mandamos al Consumidor Final de forma directa y limpia
+        rutAInsertar = rutGenericoBoleta;
+      }
 
-      // 1. Registrar en tabla `compra`
-      await _supabase.schema('deliciasmineras').from('compra').insert({
-        'idcompra': nuevoIdCompra,
-        'rutcliente': cliente?['rut'] ?? '71180745-9', // Usa un cliente por defecto
-        'idcajero': 1012195, // Usa tu ID de cajero del dump
+      // 2. Extracción dinámica del Cajero y Local desde la sesión REAL
+      final int idCajeroActual = SesionUsuario.instancia.idEmpleado ?? 0; 
+      final int localDelCajero = SesionUsuario.instancia.idLocal ?? 1;
+
+      if (idCajeroActual == 0) {
+        throw Exception("Error: No hay un ID de cajero válido en la sesión activa.");
+      }
+
+      // 3. Registrar en tabla `compra` DEJANDO QUE POSTGRESQL GENERE EL ID
+      // Usamos .select('idcompra').single() para que la BD nos devuelva el ID recién creado
+      final respuestaCompra = await _supabase.schema('deliciasmineras').from('compra').insert({
+        'rutcliente': rutAInsertar, 
+        'idcajero': idCajeroActual, 
         'metodopago': metodoPago.toLowerCase(),
-      });
+      }).select('idcompra').single();
 
-      // 2. Registrar cada producto en `boletacompra`
+      // Extraemos el ID oficial real y auto-incremental generado por Supabase
+      final int nuevoIdCompra = respuestaCompra['idcompra'] as int;
+
+      // 4. Registrar cada producto en `boletacompra`
       final ahora = DateTime.now();
       for (var sku in carrito.keys) {
         final cantidadComprada = carrito[sku]!;
         
         await _supabase.schema('deliciasmineras').from('boletacompra').insert({
-          'idcompra': nuevoIdCompra,
+          'idcompra': nuevoIdCompra, // Usamos el ID oficial que nos devolvió la tabla compra
           'sku': sku,
           'cantidad': cantidadComprada,
-          'lugar': 1, // Local de Coronel
+          'lugar': localDelCajero.toString(), // Convertido a String por si acaso
           'diacompra': ahora.day,
           'mescompra': ahora.month,
           'anocompra': ahora.year,
         });
 
-        // 3. Descontar el stock en `ofrece` (¡Lógica Real!)
-        // Obtenemos el stock actual
-        final stockResult = await _supabase
+        // 5. Descontar el stock en `ofrece` 
+        final stockResultList = await _supabase
             .schema('deliciasmineras')
             .from('ofrece')
             .select('stock')
-            .eq('idlocal', 1)
+            .eq('idlocal', localDelCajero) 
             .eq('sku', sku)
-            .single();
+            .limit(1); 
             
-        final int stockActual = stockResult['stock'] as int;
-        
-        // Actualizamos (PostgreSQL ejecutará el trigger de seguridad automáticamente)
-        await _supabase
-            .schema('deliciasmineras')
-            .from('ofrece')
-            .update({'stock': stockActual - cantidadComprada.toInt()})
-            .eq('idlocal', 1)
-            .eq('sku', sku);
+        if (stockResultList.isNotEmpty) {
+          final int stockActual = stockResultList[0]['stock'] as int;
+          
+          await _supabase
+              .schema('deliciasmineras')
+              .from('ofrece')
+              .update({'stock': stockActual - cantidadComprada.toInt()})
+              .eq('idlocal', localDelCajero) 
+              .eq('sku', sku);
+        } else {
+           print('⚠️ ADVERTENCIA: No se encontró stock para el SKU $sku en el local $localDelCajero para descontar.');
+        }
       }
 
       print("DB REAL: Venta guardada y stock descontado en Supabase.");
@@ -192,11 +220,8 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
     }
   }
 
-  // Los métodos de Turnos (Local Storage) y Vales Internos los dejamos comentados o simulados
-  // por ahora hasta que decidas si quieres hacerles una tabla en Supabase.
-  
   // ==========================================
-  // GESTIÓN DE CAJA (Sigue siendo RAM/Local por ahora)
+  // GESTIÓN DE CAJA (Local)
   // ==========================================
   final List<Map<String, dynamic>> _turnos = [];
 
@@ -234,29 +259,31 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
 
   Future<void> registrarValeInterno(Map<int, double> carrito, String motivo) async {
     try {
-      // 1. Descontar el stock real en Supabase
+      final int localDelCajero = SesionUsuario.instancia.idLocal ?? 1;
+
       for (var sku in carrito.keys) {
         final int cantidadMovida = carrito[sku]!.toInt();
         
-        final stockResult = await _supabase
+        final stockResultList = await _supabase
             .schema('deliciasmineras')
             .from('ofrece')
             .select('stock')
-            .eq('idlocal', 1)
+            .eq('idlocal', localDelCajero) 
             .eq('sku', sku)
-            .single();
+            .limit(1); 
             
-        final int stockActual = stockResult['stock'] as int;
-        
-        await _supabase
-            .schema('deliciasmineras')
-            .from('ofrece')
-            .update({'stock': stockActual - cantidadMovida})
-            .eq('idlocal', 1)
-            .eq('sku', sku);
+        if (stockResultList.isNotEmpty) {
+           final int stockActual = stockResultList[0]['stock'] as int;
+          
+           await _supabase
+              .schema('deliciasmineras')
+              .from('ofrece')
+              .update({'stock': stockActual - cantidadMovida})
+              .eq('idlocal', localDelCajero) 
+              .eq('sku', sku);
+        }
       }
 
-      // 2. Guardar el registro localmente (ya que no modelaron tabla para esto en BD)
       _valesInternos.add({
         'hora': DateTime.now(),
         'motivo': motivo,
@@ -275,11 +302,9 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
 
   Future<bool> agregarProducto(Map<String, dynamic> nuevoProducto) async {
     try {
-      // Validar si existe
       final existe = await _supabase.schema('deliciasmineras').from('producto').select('sku').eq('sku', nuevoProducto['sku']);
       if (existe.isNotEmpty) return false;
 
-      // 1. Insertar en tabla producto
       await _supabase.schema('deliciasmineras').from('producto').insert({
         'sku': nuevoProducto['sku'],
         'nombreproducto': nuevoProducto['nombre'],
@@ -287,9 +312,10 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
         'precio': nuevoProducto['precio']
       });
 
-      // 2. Asignar stock en el local 1 (Coronel) usando la tabla ofrece
+      final int localActual = SesionUsuario.instancia.idLocal ?? 1;
+      
       await _supabase.schema('deliciasmineras').from('ofrece').insert({
-        'idlocal': 1,
+        'idlocal': localActual, // <-- DINÁMICO
         'sku': nuevoProducto['sku'],
         'stock': nuevoProducto['stock'] ?? 0
       });
@@ -301,11 +327,11 @@ Future<List<Map<String, dynamic>>> obtenerVentasDelDia() async {
     }
   }
 
-Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActualizados) async {
+  Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActualizados) async {
     try {
-      // 1. Preparamos SOLO los datos que pertenecen a la tabla 'producto' y que vienen en el mapa
+      final int localActual = SesionUsuario.instancia.idLocal ?? 1;
+
       Map<String, dynamic> datosProducto = {};
-      
       if (datosActualizados.containsKey('nombre')) {
         datosProducto['nombreproducto'] = datosActualizados['nombre'];
       }
@@ -316,38 +342,27 @@ Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActua
         datosProducto['precio'] = datosActualizados['precio'];
       }
 
-      // Solo tocamos la tabla producto si realmente hay algo que cambiarle
       if (datosProducto.isNotEmpty) {
-        await _supabase
-            .schema('deliciasmineras')
-            .from('producto')
-            .update(datosProducto)
-            .eq('sku', skuOriginal);
+        await _supabase.schema('deliciasmineras').from('producto').update(datosProducto).eq('sku', skuOriginal);
       }
 
-      // 2. Tocamos la tabla 'ofrece' de forma independiente si viene un cambio de stock
       if (datosActualizados.containsKey('stock')) {
-        // 1. Forzamos a que el SKU sea un int para evitar rechazos de PostgreSQL
         int skuSeguro = int.parse(skuOriginal.toString());
         
         final respuesta = await _supabase
             .schema('deliciasmineras')
             .from('ofrece')
             .update({'stock': datosActualizados['stock']})
-            .eq('idlocal', 1)
+            .eq('idlocal', localActual) 
             .eq('sku', skuSeguro)
             .select(); 
             
         if (respuesta.isEmpty) {
-          print("🚨 ALERTA: No se encontró el SKU $skuSeguro en el Local 1.");
-          print("👉 Revisa en el Table Editor de Supabase si este producto existe en la tabla 'ofrece'.");
+          print("🚨 ALERTA: No se encontró el SKU $skuSeguro en tu local actual ($localActual).");
         } else {
-           print("✅ Stock modificado con éxito: $respuesta");
+           print("✅ Stock modificado con éxito para local $localActual: $respuesta");
         }
       }
-      
-      print("¡Stock/Producto actualizado con éxito!");
-      
     } catch (e) {
       print("Error actualizando producto: $e");
     }
@@ -355,7 +370,6 @@ Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActua
 
   Future<void> eliminarProducto(int sku) async {
     try {
-      // Eliminar dependencias primero por llaves foráneas
       await _supabase.schema('deliciasmineras').from('ofrece').delete().eq('sku', sku);
       await _supabase.schema('deliciasmineras').from('producto').delete().eq('sku', sku);
     } catch (e) {
@@ -372,18 +386,16 @@ Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActua
       final existe = await _supabase.schema('deliciasmineras').from('cliente').select('rut').eq('rut', nuevoCliente['rut']);
       if (existe.isNotEmpty) return false;
 
-      // 1. Insertar en la tabla base cliente
       await _supabase.schema('deliciasmineras').from('cliente').insert({
         'rut': nuevoCliente['rut'],
         'nombrecliente': nuevoCliente['nombre'],
         'tipocliente': 'empresa'
       });
 
-      // 2. Insertar en la tabla hija empresa
       await _supabase.schema('deliciasmineras').from('empresa').insert({
         'rut': nuevoCliente['rut'],
         'razónsocial': nuevoCliente['giro'], 
-        'correocliente': 'contacto@empresas.com' // Dato genérico para no romper el insert
+        'correocliente': 'contacto@empresas.com' 
       });
 
       return true;
@@ -409,11 +421,109 @@ Future<void> actualizarProducto(int skuOriginal, Map<String, dynamic> datosActua
 
   Future<void> eliminarCliente(String rut) async {
     try {
-      // Eliminar dependencias primero
       await _supabase.schema('deliciasmineras').from('empresa').delete().eq('rut', rut);
       await _supabase.schema('deliciasmineras').from('cliente').delete().eq('rut', rut);
     } catch (e) {
       print("Error eliminando cliente: $e");
+    }
+  }
+
+
+ // ==========================================
+  // GESTIÓN DE PERSONAL (Inserción Relacional Real)
+  // ==========================================
+ Future<bool> registrarNuevoEmpleado(Empleado nuevoEmpleado) async {
+    try {
+      // 1. Verificar si el RUT ya existe en Supabase para evitar colisiones
+      final existe = await _supabase
+          .schema('deliciasmineras')
+          .from('empleado')
+          .select('rut')
+          .eq('rut', nuevoEmpleado.rut)
+          .maybeSingle();
+
+      if (existe != null) return false; // RUT ya registrado
+
+
+      // Procesamos el nombre para generar un correo corporativo limpio (ej: benjamin.lopez@deliciasmineras.cl)
+      List<String> partesNombre = nuevoEmpleado.nombre.trim().toLowerCase().split(' ');
+      String nombreParaCorreo = partesNombre.isNotEmpty ? partesNombre.first : 'empleado';
+      String apellidoParaCorreo = partesNombre.length > 1 ? partesNombre[1] : '';
+      
+      String correoCorporativo = apellidoParaCorreo.isNotEmpty 
+          ? '$nombreParaCorreo.$apellidoParaCorreo@deliciasmineras.cl'
+          : '$nombreParaCorreo@deliciasmineras.cl';
+
+      // 2. Mapear los datos comunes para la tabla padre 
+      // ¡Declaramos explícitamente <String, dynamic> para que acepte el INT del local!
+      final Map<String, dynamic> datosEmpleado = {
+        'rut': nuevoEmpleado.rut,
+        'nombreempleado': nuevoEmpleado.nombre,
+        'tipoempleado': nuevoEmpleado.rol.toLowerCase(),
+        'contrasena': nuevoEmpleado.password,
+        'correoempleado': correoCorporativo, 
+      };
+
+      // Ahora sí podemos pasarle el INT limpiamente sin casteos raros
+      if (nuevoEmpleado is Cajero) {
+        datosEmpleado['idlocal'] = nuevoEmpleado.idLocal;
+      }
+
+      // 3. Insertar en tabla 'empleado' y recuperar el SERIAL autogenerado
+      final respuesta = await _supabase
+          .schema('deliciasmineras')
+          .from('empleado')
+          .insert(datosEmpleado)
+          .select('idempleado')
+          .single();
+
+      final int idGenerado = respuesta['idempleado'] as int;
+
+      // 4. Mantener la integridad referencial insertando en la tabla hija con TODOS sus atributos
+      if (nuevoEmpleado is Cajero) {
+        await _supabase.schema('deliciasmineras').from('cajero').insert({
+          'idempleado': idGenerado,
+        });
+      } 
+      else if (nuevoEmpleado is Repartidor) {
+        await _supabase.schema('deliciasmineras').from('repartidor').insert({
+          'idempleado': idGenerado,
+          // Asumo que tu columna en BD se llama patentevehiculo, ajusta si es necesario
+          'patentevehiculo': nuevoEmpleado.patenteVehiculoAsignado, 
+        });
+      } 
+      else if (nuevoEmpleado is Administrador) {
+        await _supabase.schema('deliciasmineras').from('administrador').insert({
+          'idempleado': idGenerado,
+          // Asumo que tu columna en BD se llama nivelacceso, ajusta si es necesario
+          'nivelacceso': nuevoEmpleado.nivelAcceso, 
+        });
+      }
+
+      print("DB REAL: Registro exitoso en PostgreSQL para ${nuevoEmpleado.nombre} (ID: $idGenerado).");
+      return true;
+
+    } catch (e) {
+      print("Error ejecutando transacciones de personal en Supabase: $e");
+      return false;
+    }
+  }
+
+  // ==========================================
+  // OBTENER LOCALES DISPONIBLES
+  // ==========================================
+  Future<List<Map<String, dynamic>>> obtenerLocales() async {
+    try {
+      final response = await _supabase
+          .schema('deliciasmineras')
+          .from('local')
+          .select('idlocal, callelocal, numerolocal, ciudadlocal')
+          .order('idlocal');
+          
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print("Error leyendo locales de Supabase: $e");
+      return [];
     }
   }
 }

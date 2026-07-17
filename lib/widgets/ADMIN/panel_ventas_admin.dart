@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
-import '../../data/mock_database.dart';
+import '../../services/database_service.dart';
 import '../../utils/app_formatters.dart';
 import '../ticket_térmico.dart';
 
@@ -88,16 +88,18 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
     // 3. Filtro por Pago (Corregido y robusto)
     if (_filtroPago != 'Todos') {
       filtrados = filtrados.where((v) {
-        // En tu mock_database la clave se registra como 'metodo'
-        final String metodo = v['metodo'] ?? 'Tarjeta'; 
+        // Forzamos el texto de la BD a minúsculas para hacer un "match" perfecto
+        final String metodo = (v['metodo'] ?? '').toString().toLowerCase(); 
 
         if (_filtroPago == 'Efectivo') {
-          return metodo == 'Efectivo';
+          return metodo == 'efectivo';
         } else if (_filtroPago == 'Tarjeta') {
-          // Si el admin busca "Tarjeta", filtramos por Debito o Credito
-          return metodo == 'Debito' || metodo == 'Credito' || metodo == 'Tarjeta';
+          return metodo == 'debito' || metodo == 'credito' || metodo == 'tarjeta';
+        } else if (_filtroPago == 'Transferencia') {
+          return metodo == 'transferencia';
         }
-        return true;
+        
+        return false; // Retornamos falso si no calza con nada para limpiar la tabla
       }).toList();
     }
 

@@ -242,6 +242,9 @@ void _ejecutarLogin() async {
                     Divider(color: Colors.black26),
                     Text('👤 Cajero:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
                     Text('RUT: 11.000.054-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+
+                    Text('👤 Cajero local 2:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+                    Text('RUT: 10.000.053-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     
                     Text('🚚 Repartidor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
                     Text('RUT: 11.000.056-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),

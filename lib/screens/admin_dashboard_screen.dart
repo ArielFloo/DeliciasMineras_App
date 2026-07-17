@@ -4,7 +4,7 @@ import '../widgets/ADMIN/tarjeta_metrica_admin.dart';
 import '../core/app_theme.dart';
 import '../widgets/ADMIN/grafico_ventas_barras.dart';
 import '../widgets/ADMIN/panel_inventario_admin.dart';
-import '../data/mock_database.dart';
+import '../services/database_service.dart';
 import '../utils/app_formatters.dart';
 import '../widgets/ADMIN/admin_breadcrumbs.dart';
 import '../widgets/ADMIN/panel_ventas_admin.dart';

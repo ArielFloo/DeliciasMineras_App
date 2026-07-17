@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../data/mock_database.dart';
+import '../../services/database_service.dart';
 import '../../core/app_theme.dart';
 import '../../utils/app_formatters.dart';
 
