@@ -5,7 +5,10 @@ import '../../utils/app_formatters.dart';
 import '../../models/empleado.dart';
 
 class ModalFormularioEmpleado extends StatefulWidget {
-  const ModalFormularioEmpleado({super.key});
+  // Recibe opcionalmente al empleado para activar el modo edición
+  final Empleado? empleadoAEditar;
+
+  const ModalFormularioEmpleado({super.key, this.empleadoAEditar});
 
   @override
   State<ModalFormularioEmpleado> createState() => _ModalFormularioEmpleadoState();
@@ -21,13 +24,12 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
   
   String _rolSeleccionado = 'Cajero';
   bool _guardando = false;
+  bool _esEdicion = false; // Bandera de control
 
-  // Variables para el selector dinámico de locales
   List<Map<String, dynamic>> _localesBD = [];
   int? _localSeleccionado;
   bool _cargandoLocales = true;
 
-  // Definimos los roles con sus respectivos íconos para las tarjetas
   final List<Map<String, dynamic>> _roles = [
     {'nombre': 'Cajero', 'icono': Icons.point_of_sale_rounded},
     {'nombre': 'Repartidor', 'icono': Icons.local_shipping_rounded},
@@ -37,17 +39,36 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
   @override
   void initState() {
     super.initState();
+    _esEdicion = widget.empleadoAEditar != null;
     _cargarLocales();
+    
+    // Si viene un empleado, pre-llenamos sus campos históricos
+    if (_esEdicion) {
+      final emp = widget.empleadoAEditar!;
+      _rutCtrl.text = emp.rut;
+      _nombreCtrl.text = emp.nombre;
+      _passwordCtrl.text = emp.password;
+      _rolSeleccionado = emp.rol;
+      
+      // Control de datos extendidos según la herencia del modelo
+      if (emp is Repartidor) {
+        _extraCtrl.text = emp.patenteVehiculoAsignado;
+      } else if (emp is Administrador) {
+        _extraCtrl.text = emp.nivelAcceso.toString();
+      } else if (emp is Cajero) {
+        _localSeleccionado = emp.idLocal;
+      }
+    }
   }
 
-  // Método para extraer los locales desde Supabase
   Future<void> _cargarLocales() async {
-    final data = await MockDatabase.instancia.obtenerLocales();
+    final data = await DatabaseService.instancia.obtenerLocales();
     if (mounted) {
       setState(() {
         _localesBD = data;
-        if (_localesBD.isNotEmpty) {
-          _localSeleccionado = _localesBD.first['idlocal']; // Selecciona el primero por defecto
+        // Solo asigna el primero por defecto si no venimos arrastrando el local en edición
+        if (_localesBD.isNotEmpty && _localSeleccionado == null) {
+          _localSeleccionado = _localesBD.first['idlocal'];
         }
         _cargandoLocales = false;
       });
@@ -57,7 +78,6 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // 1. Validamos matemáticamente
     if (!AppFormatters.validarRut(_rutCtrl.text)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('El RUT ingresado no es válido.'), backgroundColor: AppTheme.errorColor),
@@ -66,44 +86,55 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
     }
 
     setState(() => _guardando = true);
-
-    // 2. Limpiamos los puntos para la BD. Mantenemos el formato "12345678-9"
     String rutLimpioParaBD = _rutCtrl.text.replaceAll('.', '').toUpperCase();
+    
+    // Mantenemos el ID original si es edición, o generamos uno nuevo si es un registro
+    String idEmpleadoFinal = _esEdicion 
+        ? widget.empleadoAEditar!.id 
+        : 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}';
 
-    Empleado nuevoUsuario;
+    Empleado usuarioProcesado;
     
     if (_rolSeleccionado == 'Repartidor') {
-      nuevoUsuario = Repartidor(
-        id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
+      usuarioProcesado = Repartidor(
+        id: idEmpleadoFinal,
         rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
         patenteVehiculoAsignado: _extraCtrl.text.trim().isEmpty ? 'Sin Asignar' : _extraCtrl.text.trim().toUpperCase(),
       );
     } else if (_rolSeleccionado == 'Administrador') {
-      nuevoUsuario = Administrador(
-        id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
+      usuarioProcesado = Administrador(
+        id: idEmpleadoFinal,
         rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
         nivelAcceso: int.tryParse(_extraCtrl.text) ?? 1,
       );
     } else {
-      nuevoUsuario = Cajero(
-        id: 'EMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(9)}',
+      usuarioProcesado = Cajero(
+        id: idEmpleadoFinal,
         rut: rutLimpioParaBD, 
         nombre: _nombreCtrl.text.trim(),
         password: _passwordCtrl.text,
-        // Usamos el ID rescatado directamente desde el selector desplegable
         idLocal: _localSeleccionado ?? 1, 
       );
     }
 
-    bool exito = await MockDatabase.instancia.registrarNuevoEmpleado(nuevoUsuario);
+    bool exito;
+    if (_esEdicion) {
+      // LLAMADA AL BACKEND PARA ACTUALIZAR (puedes estructurar este método en tu DB Service)
+      exito = await DatabaseService.instancia.actualizarEmpleado(usuarioProcesado);
+    } else {
+      exito = await DatabaseService.instancia.registrarNuevoEmpleado(usuarioProcesado);
+    }
 
     if (!exito && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Este RUT ya está registrado en el sistema.'), backgroundColor: AppTheme.errorColor),
+        SnackBar(
+          content: Text(_esEdicion ? 'Error al actualizar el registro.' : 'Error: Este RUT ya está registrado en el sistema.'), 
+          backgroundColor: AppTheme.errorColor
+        ),
       );
       setState(() => _guardando = false);
       return;
@@ -138,27 +169,34 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Cabecera
+                // Cabecera Dinámica según la acción
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppTheme.successColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.person_add_alt_1_rounded, color: AppTheme.successColor, size: 28),
+                      decoration: BoxDecoration(
+                        color: (_esEdicion ? AppTheme.primaryColor : AppTheme.successColor).withOpacity(0.1), 
+                        borderRadius: BorderRadius.circular(12)
+                      ),
+                      child: Icon(
+                        _esEdicion ? Icons.edit_note_rounded : Icons.person_add_alt_1_rounded, 
+                        color: _esEdicion ? AppTheme.primaryColor : AppTheme.successColor, 
+                        size: 28
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Registrar Personal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.secondary)),
-                        Text('Formulario de ingreso a nuevo colaborador', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                        Text(_esEdicion ? 'Editar Perfil' : 'Registrar Personal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.secondary)),
+                        Text(_esEdicion ? 'Modificando los parámetros del colaborador' : 'Formulario de ingreso a nuevo colaborador', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
 
-                // Selector de Rol Moderno (Chips Interactivos)
+                // Selector de Rol Moderno (Se bloquea el cambio si es Edición)
                 Text(
                   'Rol en la empresa',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colorScheme.secondary),
@@ -172,7 +210,7 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
                         child: InkWell(
-                          onTap: () => setState(() {
+                          onTap: _esEdicion ? null : () => setState(() {
                             _rolSeleccionado = rolData['nombre'];
                             _extraCtrl.clear();
                           }),
@@ -188,23 +226,26 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                                 width: esActivo ? 1.5 : 1,
                               ),
                             ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  rolData['icono'],
-                                  color: esActivo ? AppTheme.primaryColor : colorScheme.onSurfaceVariant,
-                                  size: 22,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  rolData['nombre'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: esActivo ? FontWeight.bold : FontWeight.normal,
+                            child: Opacity(
+                              opacity: (_esEdicion && !esActivo) ? 0.4 : 1.0, // Atenúa los roles inactivos en la edición
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    rolData['icono'],
                                     color: esActivo ? AppTheme.primaryColor : colorScheme.onSurfaceVariant,
+                                    size: 22,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    rolData['nombre'],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: esActivo ? FontWeight.bold : FontWeight.normal,
+                                      color: esActivo ? AppTheme.primaryColor : colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -292,7 +333,7 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                 ),
                 const SizedBox(height: 32),
 
-                // Botones
+                // Botones de salida e Inserción/Actualización
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -308,7 +349,7 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.successColor,
+                          backgroundColor: _esEdicion ? AppTheme.primaryColor : AppTheme.successColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -316,8 +357,13 @@ class _ModalFormularioEmpleadoState extends State<ModalFormularioEmpleado> {
                         onPressed: _guardando ? null : _guardar,
                         icon: _guardando 
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-                          : const Icon(Icons.check_circle_outline_rounded),
-                        label: Text(_guardando ? 'Guardando...' : 'Crear Usuario', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          : Icon(_esEdicion ? Icons.save_rounded : Icons.check_circle_outline_rounded),
+                        label: Text(
+                          _guardando 
+                              ? 'Guardando...' 
+                              : (_esEdicion ? 'Actualizar Cambios' : 'Crear Usuario'), 
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)
+                        ),
                       ),
                     ),
                   ],

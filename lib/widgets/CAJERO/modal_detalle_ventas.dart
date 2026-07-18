@@ -31,7 +31,7 @@ class _ModalDetalleVentasState extends State<ModalDetalleVentas> {
   }
 
   Future<void> _cargarDatos() async {
-    final ventas = await MockDatabase.instancia.obtenerVentasDelDia();
+    final ventas = await DatabaseService.instancia.obtenerVentasDelDia();
     
     int ef = 0; int deb = 0; int cred = 0;
     Map<int, double> prod = {};

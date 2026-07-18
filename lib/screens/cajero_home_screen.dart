@@ -58,8 +58,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
   Future<void> _cargarDatosDeServidor() async {
     try {
-      final prods = await MockDatabase.instancia.obtenerProductos();
-      final clients = await MockDatabase.instancia.obtenerClientes();
+      final prods = await DatabaseService.instancia.obtenerProductos();
+      final clients = await DatabaseService.instancia.obtenerClientes();
       
       if (!mounted) return; 
 
@@ -335,7 +335,7 @@ void _procesarCodigoEscaneado(String input) {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      await MockDatabase.instancia.registrarVenta(
+      await DatabaseService.instancia.registrarVenta(
         carrito: _carrito,
         total: _totalCompra,
         documento: tipoDoc,
@@ -478,7 +478,7 @@ void _procesarCodigoEscaneado(String input) {
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      await MockDatabase.instancia.registrarValeInterno(_carrito, result);
+      await DatabaseService.instancia.registrarValeInterno(_carrito, result);
       await _cargarDatosDeServidor(); 
 
       if (mounted) Navigator.pop(context); 
@@ -519,7 +519,7 @@ Future<void> _cerrarCaja() async {
       _timer?.cancel();
 
       if (_turnoId != null) {
-        await MockDatabase.instancia.cerrarTurno(_turnoId!); 
+        await DatabaseService.instancia.cerrarTurno(_turnoId!); 
       }
 
       if (mounted) {
@@ -674,7 +674,7 @@ Future<void> _inicializarCaja() async {
         _iniciarContadorTiempo();
         
       } else if (result == 'CERRAR_ANTIGUO') {
-        await MockDatabase.instancia.cerrarTurno(sesionLocal['turnoId']);
+        await DatabaseService.instancia.cerrarTurno(sesionLocal['turnoId']);
         await LocalStorage.borrarSesionCaja();
         
         // Si veníamos de un F5 (AuthService no tiene sesión real activa), 
@@ -696,7 +696,7 @@ Future<void> _inicializarCaja() async {
   }
 
 Future<void> _abrirNuevoTurno(String empleadoId) async {
-    final nuevoId = await MockDatabase.instancia.abrirTurno(empleadoId);
+    final nuevoId = await DatabaseService.instancia.abrirTurno(empleadoId);
     setState(() {
       _turnoId = nuevoId;
       _horaInicioTurno = DateTime.now();
@@ -715,7 +715,7 @@ Future<void> _abrirNuevoTurno(String empleadoId) async {
 
 void _sincronizarEstadoCarrito() {
     if (_turnoId != null) {
-      MockDatabase.instancia.sincronizarCarrito(_turnoId!, _carrito);
+      DatabaseService.instancia.sincronizarCarrito(_turnoId!, _carrito);
       
       LocalStorage.guardarSesionCaja(
         turnoId: _turnoId!,

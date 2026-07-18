@@ -56,7 +56,7 @@ class _ModalFormularioProductoState extends State<ModalFormularioProducto> {
     };
 
     if (widget.productoAEditar == null) {
-      bool exito = await MockDatabase.instancia.agregarProducto(productoArmado);
+      bool exito = await DatabaseService.instancia.agregarProducto(productoArmado);
       if (!exito && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -69,7 +69,7 @@ class _ModalFormularioProductoState extends State<ModalFormularioProducto> {
         return;
       }
     } else {
-      await MockDatabase.instancia.actualizarProducto(widget.productoAEditar!['sku'], productoArmado);
+      await DatabaseService.instancia.actualizarProducto(widget.productoAEditar!['sku'], productoArmado);
     }
 
     if (mounted) Navigator.pop(context, true);

@@ -57,7 +57,7 @@ class _GraficoVentasBarrasState extends State<GraficoVentasBarras> {
 
   Future<void> _cargarDatos() async {
     setState(() => _cargando = true);
-    final ventas = await MockDatabase.instancia.obtenerVentasDelDia(); // Actúa como historial de todas las ventas
+    final ventas = await DatabaseService.instancia.obtenerVentasDelDia(); // Actúa como historial de todas las ventas
 
     int numBarras = 0;
     List<double> tempBoletas = [];

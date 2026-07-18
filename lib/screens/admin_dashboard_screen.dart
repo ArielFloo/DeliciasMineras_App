@@ -46,8 +46,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 Future<void> _cargarMetricas() async {
     setState(() => _cargandoMetricas = true);
     try {
-      final productos = await MockDatabase.instancia.obtenerProductos();
-      final ventas = await MockDatabase.instancia.obtenerVentasDelDia();
+      final productos = await DatabaseService.instancia.obtenerProductos();
+      final ventas = await DatabaseService.instancia.obtenerVentasDelDia();
 
       int ingresosCalculados = 0;
       int comprasCalculadas = 0;

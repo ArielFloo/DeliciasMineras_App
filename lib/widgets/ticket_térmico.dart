@@ -17,7 +17,7 @@ class TicketTermico extends StatelessWidget {
   Widget build(BuildContext context) {
     // Envolvemos el Dialog en un FutureBuilder para consultar Supabase en vivo
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: MockDatabase.instancia.obtenerLocales(),
+      future: DatabaseService.instancia.obtenerLocales(),
       builder: (context, snapshot) {
         
         // Mientras carga, mostramos un indicador discreto

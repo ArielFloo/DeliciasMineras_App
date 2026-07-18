@@ -22,7 +22,7 @@ class _PanelClientesAdminState extends State<PanelClientesAdmin> {
 
   Future<void> _cargarClientes() async {
     setState(() => _cargando = true);
-    final data = await MockDatabase.instancia.obtenerClientes();
+    final data = await DatabaseService.instancia.obtenerClientes();
     setState(() {
       _clientes = data;
       _cargando = false;
@@ -57,7 +57,7 @@ class _PanelClientesAdminState extends State<PanelClientesAdmin> {
     );
 
     if (confirmar == true) {
-      await MockDatabase.instancia.eliminarCliente(rut);
+      await DatabaseService.instancia.eliminarCliente(rut);
       _cargarClientes();
     }
   }
@@ -230,9 +230,9 @@ Future<void> _mostrarFormularioCliente({Map<String, dynamic>? clienteExistente})
                             };
 
                             if (esEdicion) {
-                              await MockDatabase.instancia.actualizarCliente(clienteExistente['rut'], datos);
+                              await DatabaseService.instancia.actualizarCliente(clienteExistente['rut'], datos);
                             } else {
-                              final exito = await MockDatabase.instancia.agregarCliente(datos);
+                              final exito = await DatabaseService.instancia.agregarCliente(datos);
                               if (!exito) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('El RUT ya existe en el sistema'), backgroundColor: AppTheme.errorColor),

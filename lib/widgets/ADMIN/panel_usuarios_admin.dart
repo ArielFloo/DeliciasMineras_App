@@ -1,3 +1,4 @@
+import 'package:delicias_mineras_app/services/database_service.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
 import '../../services/auth_service.dart';
@@ -24,8 +25,8 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
   Future<void> _cargarUsuarios() async {
     setState(() => _cargando = true);
     try {
-      // Consumimos directamente desde tu AuthService Singleton
-      final datos = await AuthService().obtenerEmpleados();
+      // Consumimos directamente desde Dataservice
+      final datos = await DatabaseService.instancia.obtenerEmpleados();
       if (mounted) {
         setState(() {
           _usuarios = datos;
@@ -51,6 +52,27 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
           const SnackBar(
             content: Text('Usuario registrado y habilitado exitosamente.'),
             backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _abrirFormularioEdicion(Empleado usuario) async {
+    final bool? recargar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ModalFormularioEmpleado(empleadoAEditar: usuario),
+    );
+
+    if (recargar == true) {
+      _cargarUsuarios(); 
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Perfil de usuario actualizado exitosamente.'),
+            backgroundColor: AppTheme.primaryColor, // Usamos el color primario para diferenciarlo de una creación
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -179,16 +201,35 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            rol,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                rol,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Botón de Edición
+                            InkWell(
+                              borderRadius: BorderRadius.circular(50),
+                              onTap: () => _abrirFormularioEdicion(user), // Aquí llamamos al nuevo método
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Icon(
+                                  Icons.edit_outlined, 
+                                  size: 20, 
+                                  color: colorScheme.primary, // Color azul/principal de tu tema
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

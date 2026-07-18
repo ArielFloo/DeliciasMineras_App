@@ -40,7 +40,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
   Future<void> _cargarInventario() async {
     setState(() => _cargando = true);
     try {
-      final datos = await MockDatabase.instancia.obtenerProductos();
+      final datos = await DatabaseService.instancia.obtenerProductos();
       if (mounted) {
         setState(() {
           _productos = datos;
@@ -180,7 +180,7 @@ class _PanelInventarioAdminState extends State<PanelInventarioAdmin> {
     );
 
     if (confirmar == true) {
-      await MockDatabase.instancia.eliminarProducto(producto['sku']);
+      await DatabaseService.instancia.eliminarProducto(producto['sku']);
       _cargarInventario();
 
       if (mounted) {

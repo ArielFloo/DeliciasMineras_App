@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'sesion_usuario.dart';
 import '../models/empleado.dart';
 
-class MockDatabase { 
-  static final MockDatabase instancia = MockDatabase._interno();
-  MockDatabase._interno();
+class DatabaseService { 
+  static final DatabaseService instancia = DatabaseService._interno();
+  DatabaseService._interno();
 
   // Cliente oficial de Supabase
   final _supabase = Supabase.instance.client;
@@ -432,6 +432,67 @@ class MockDatabase {
  // ==========================================
   // GESTIÓN DE PERSONAL (Inserción Relacional Real)
   // ==========================================
+ // ==========================================
+  // PANEL ADMIN: Obtener empleados reales + locales
+  // ==========================================
+// ==========================================
+  // OBTENER EMPLEADOS (Panel de Administración)
+  // ==========================================
+  Future<List<Empleado>> obtenerEmpleados() async {
+    // 1. Iniciamos con una lista completamente vacía
+    List<Empleado> listaFinal = [];
+
+    try {
+      final response = await _supabase.schema('deliciasmineras').from('empleado').select();
+      
+      for (var row in response) {
+        final rol = row['tipoempleado'].toString().toLowerCase();
+        final idStr = row['idempleado'].toString();
+
+        if (rol == 'cajero') {
+          listaFinal.add(Cajero(
+            id: idStr,
+            rut: row['rut'], // <-- Lee el RUT real
+            nombre: row['nombreempleado'],
+            password: row['contrasena'], // <-- Lee la contraseña real
+            idLocal: row['idlocal'] != null ? (row['idlocal'] as num).toInt() : 1,
+            estado: 'Disponible',
+            detalleEstado: 'Operando desde Supabase',
+            activo: true,
+          ));
+        } else if (rol == 'repartidor') {
+          listaFinal.add(Repartidor(
+            id: idStr,
+            rut: row['rut'], // <-- Lee el RUT real
+            nombre: row['nombreempleado'],
+            password: row['contrasena'], // <-- Lee la contraseña real
+            patenteVehiculoAsignado: 'Sin asignar', // O trae la patente si cruzas tablas
+            estado: 'En Ruta',
+            detalleEstado: 'Conectado a Supabase',
+            activo: true,
+          ));
+        } else if (rol == 'administrador' || rol == 'admin') {
+          // Opcional: Si tienes administradores en la BD, también los cargamos
+          listaFinal.add(Administrador(
+            id: idStr,
+            rut: row['rut'],
+            nombre: row['nombreempleado'],
+            password: row['contrasena'],
+            nivelAcceso: 5,
+            estado: 'Disponible',
+            detalleEstado: 'Monitoreando la plataforma',
+            activo: true,
+          ));
+        }
+      }
+    } catch (e) {
+      print("Error cargando empleados de Supabase para el panel: $e");
+    }
+
+    return listaFinal;
+  }
+
+
  Future<bool> registrarNuevoEmpleado(Empleado nuevoEmpleado) async {
     try {
       // 1. Verificar si el RUT ya existe en Supabase para evitar colisiones
@@ -508,7 +569,34 @@ class MockDatabase {
       return false;
     }
   }
+  
+Future<bool> actualizarEmpleado(Empleado emp) async {
+  try {
+    await _supabase.schema('deliciasmineras').from('empleado').update({
+      'nombreempleado': emp.nombre,
+      'rut': emp.rut,
+      'contrasena': emp.password,
+    }).eq('idempleado', int.parse(emp.id));
 
+    // 2. Si es Cajero, actualizamos sucursal en la tabla hija
+    if (emp is Cajero) {
+      await _supabase.from('cajero').update({
+        'idlocal': emp.idLocal,
+      }).eq('idempleado', emp.id);
+    } 
+    // 3. Si es Repartidor, actualizamos patente en su tabla hija
+    else if (emp is Repartidor) {
+      await _supabase.from('repartidor').update({
+        'patente_vehiculo': emp.patenteVehiculoAsignado,
+      }).eq('idempleado', emp.id);
+    }
+
+    return true;
+  } catch (e) {
+    print("Error actualizando datos: $e");
+    return false;
+  }
+}
   // ==========================================
   // OBTENER LOCALES DISPONIBLES
   // ==========================================

@@ -37,10 +37,10 @@ class _PanelVentasAdminState extends State<PanelVentasAdmin> {
     setState(() => _cargando = true);
     try {
       // Usamos el método que simula traer todo el historial
-      final datosVentas = await MockDatabase.instancia.obtenerVentasDelDia();
+      final datosVentas = await DatabaseService.instancia.obtenerVentasDelDia();
       
       // 2. CARGAMOS LOS PRODUCTOS PARA RECONSTRUIR EL TICKET
-      final datosProductos = await MockDatabase.instancia.obtenerProductos();
+      final datosProductos = await DatabaseService.instancia.obtenerProductos();
       
       // Ordenamos de la más reciente a la más antigua
       datosVentas.sort((a, b) => (b['hora'] as DateTime).compareTo(a['hora'] as DateTime));
