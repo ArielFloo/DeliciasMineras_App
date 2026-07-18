@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/login_screen.dart';
 import '../screens/cajero_home_screen.dart';
-import '../screens/repartidor_home_screen.dart';
+import '../screens/REPARTIDOR/repartidor_home_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 
 class AppRouter {
