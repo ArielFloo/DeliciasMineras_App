@@ -412,7 +412,7 @@ class DatabaseService {
     }
   }
 
-  Future<void> actualizarProducto(
+Future<void> actualizarProducto(
     int skuOriginal,
     Map<String, dynamic> datosActualizados,
   ) async {
@@ -430,6 +430,7 @@ class DatabaseService {
         datosProducto['precio'] = datosActualizados['precio'];
       }
 
+      // 1. Actualización de Catálogo (Tabla producto)
       if (datosProducto.isNotEmpty) {
         await _supabase
             .schema('deliciasmineras')
@@ -438,24 +439,29 @@ class DatabaseService {
             .eq('sku', skuOriginal);
       }
 
+      // 2. Actualización o Inserción de Inventario (Tabla ofrece)
       if (datosActualizados.containsKey('stock')) {
         int skuSeguro = int.parse(skuOriginal.toString());
 
+        // EL CAMBIO ESTÁ AQUÍ: Usamos upsert en lugar de update.
+        // Le pasamos el objeto completo (local, sku y stock) para que sepa qué crear si no lo encuentra.
         final respuesta = await _supabase
             .schema('deliciasmineras')
             .from('ofrece')
-            .update({'stock': datosActualizados['stock']})
-            .eq('idlocal', localActual)
-            .eq('sku', skuSeguro)
+            .upsert({
+              'idlocal': localActual,
+              'sku': skuSeguro,
+              'stock': datosActualizados['stock']
+            })
             .select();
 
         if (respuesta.isEmpty) {
           print(
-            "🚨 ALERTA: No se encontró el SKU $skuSeguro en tu local actual ($localActual).",
+            "🚨 ALERTA: No se pudo modificar ni insertar el SKU $skuSeguro en tu local actual ($localActual).",
           );
         } else {
           print(
-            "✅ Stock modificado con éxito para local $localActual: $respuesta",
+            "✅ Stock modificado o insertado con éxito para local $localActual: $respuesta",
           );
         }
       }
