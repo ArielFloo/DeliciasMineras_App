@@ -260,7 +260,7 @@
                     <p style="font-size: 0.8em; color: #888;">Parte 3: Logística y Personal</p>
 
                     <ul style="text-align: left; font-size: 0.7em; line-height: 1.3;">
-                        <li><strong>Envio</strong>(<u><strong>idEnvio</strong></u>, rutCliente, idRepartidor, horaEstimada, direccionEnvio, precioEnvio)
+                        <li><strong>Envio</strong>(<u><strong>idEnvio</strong></u>, rutCliente, idRepartidor, horaEstimada, direccionEnvio, precioEnvio, pendiente)
                             <ul>
                                 <li>FK: rutCliente &rarr; Cliente</li>
                                 <li>FK: idRepartidor &rarr; Empleado</li>
@@ -268,7 +268,7 @@
                             </ul>
                         </li>
                         <br>
-                        <li><strong>Empleado</strong>(<u><strong>idEmpleado</strong></u>, nombreEmpleado, correoEmpleado, tipoEmpleado)
+                        <li><strong>Empleado</strong>(<u><strong>idEmpleado</strong></u>, rut, contraseña, nombreEmpleado, correoEmpleado, tipoEmpleado)
                             <ul>
                                 <li><strong>Cajero</strong>(<u><strong>idEmpleado</strong></u>)
                                     <ul>
@@ -553,7 +553,8 @@ LIMIT 5;
             <section>
                 <h2>5. Interfaz Grafica</h2>
                 <p>Se desarrollo una aplicación que permitiria comunicarse directamente con la base de datos sin tener que usar directamente consultas SQL</p>
-                <a href="http://localhost:59344/">Delicias Mineras</a>
+                <!--CAMBIAR ESTO-->
+                <a href="http://localhost:57218/">Delicias Mineras</a>
             </section>
 
         </div>
