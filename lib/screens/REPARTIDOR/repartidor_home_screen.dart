@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/app_theme.dart';
 import '../../services/database_service.dart';
-import 'detalle_envio_screen.dart';
 import '../../widgets/REPARTIDOR/tarjeta_envio.dart';
 
 class RepartidorHomeScreen extends StatefulWidget {
@@ -31,6 +29,7 @@ class _RepartidorHomeScreenState extends State<RepartidorHomeScreen> {
     setState(() => _cargarEnvios());
   }
 
+  /*
   Future<void> _navegarADetalle(
     Map<String, dynamic> envio,
     List<Map<String, dynamic>> listaActual,
@@ -55,6 +54,7 @@ class _RepartidorHomeScreenState extends State<RepartidorHomeScreen> {
       );
     }
   }
+*/
 
   @override
   Widget build(BuildContext context) {
@@ -209,13 +209,6 @@ class _RepartidorHomeScreenState extends State<RepartidorHomeScreen> {
             label: 'Completados',
             value: '$_entregasCompletadas',
             color: AppTheme.successColor,
-          ),
-          _buildDivider(),
-          _buildStatItem(
-            icon: Icons.access_time_rounded,
-            label: 'Próximo',
-            value: totalAsignados > 0 ? 'Ver lista' : '--',
-            color: AppTheme.infoColor,
           ),
         ],
       ),
