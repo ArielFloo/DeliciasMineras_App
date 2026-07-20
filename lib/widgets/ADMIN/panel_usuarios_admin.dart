@@ -1,7 +1,6 @@
 import 'package:delicias_mineras_app/services/database_service.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_theme.dart';
-import '../../services/auth_service.dart';
 import 'modal_formulario_empleado.dart';
 import '../../models/empleado.dart';
 
@@ -13,7 +12,8 @@ class PanelUsuariosAdmin extends StatefulWidget {
 }
 
 class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
-  List<Empleado> _usuarios = []; // Ahora maneja la clase Empleado nativa de tu auth_service
+  List<Empleado> _usuarios =
+      []; // Ahora maneja la clase Empleado nativa de tu auth_service
   bool _cargando = true;
 
   @override
@@ -46,7 +46,7 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
     );
 
     if (recargar == true) {
-      _cargarUsuarios(); 
+      _cargarUsuarios();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -67,12 +67,13 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
     );
 
     if (recargar == true) {
-      _cargarUsuarios(); 
+      _cargarUsuarios();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Perfil de usuario actualizado exitosamente.'),
-            backgroundColor: AppTheme.primaryColor, // Usamos el color primario para diferenciarlo de una creación
+            backgroundColor: AppTheme
+                .primaryColor, // Usamos el color primario para diferenciarlo de una creación
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -118,7 +119,10 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                   ),
                   onPressed: _abrirFormularioRegistro,
                   icon: const Icon(Icons.add),
-                  label: const Text('Nuevo Empleado', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Nuevo Empleado',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -179,7 +183,11 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                           backgroundColor: colorScheme.primary.withOpacity(0.1),
                           child: Text(
                             user.nombre[0],
-                            style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 18),
+                            style: TextStyle(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -189,14 +197,21 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                             children: [
                               Text(
                                 user.nombre,
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.secondary),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: colorScheme.secondary,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 'RUT: ${user.rut}',
-                                style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ],
                           ),
@@ -205,27 +220,37 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.grey[100],
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 rol,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),
                             // Botón de Edición
                             InkWell(
                               borderRadius: BorderRadius.circular(50),
-                              onTap: () => _abrirFormularioEdicion(user), // Aquí llamamos al nuevo método
+                              onTap: () => _abrirFormularioEdicion(
+                                user,
+                              ), // Aquí llamamos al nuevo método
                               child: Padding(
                                 padding: const EdgeInsets.all(4.0),
                                 child: Icon(
-                                  Icons.edit_outlined, 
-                                  size: 20, 
-                                  color: colorScheme.primary, // Color azul/principal de tu tema
+                                  Icons.edit_outlined,
+                                  size: 20,
+                                  color: colorScheme
+                                      .primary, // Color azul/principal de tu tema
                                 ),
                               ),
                             ),
@@ -245,7 +270,11 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                             color: ledColor,
                             shape: BoxShape.circle,
                             boxShadow: [
-                              BoxShadow(color: ledColor.withOpacity(0.4), blurRadius: 4, spreadRadius: 1),
+                              BoxShadow(
+                                color: ledColor.withOpacity(0.4),
+                                blurRadius: 4,
+                                spreadRadius: 1,
+                              ),
                             ],
                           ),
                         ),
@@ -256,18 +285,29 @@ class _PanelUsuariosAdminState extends State<PanelUsuariosAdmin> {
                             children: [
                               Text(
                                 estado,
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colorScheme.secondary),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: colorScheme.secondary,
+                                ),
                               ),
                               Text(
                                 user.detalleEstado,
-                                style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
-                        Icon(estadoIcon, color: ledColor.withOpacity(0.5), size: 20),
+                        Icon(
+                          estadoIcon,
+                          color: ledColor.withOpacity(0.5),
+                          size: 20,
+                        ),
                       ],
                     ),
                   ],

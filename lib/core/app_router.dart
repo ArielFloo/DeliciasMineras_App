@@ -10,10 +10,7 @@ class AppRouter {
     initialLocation: '/',
     routes: [
       // 1. Pantalla de Selección de Rol / Login Inicial
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/', builder: (context, state) => const LoginScreen()),
       // 2. Módulo del Cajero (Punto de Venta)
       GoRoute(
         path: '/cajero',
@@ -30,8 +27,7 @@ class AppRouter {
         builder: (context, state) => const AdminDashboardScreen(),
       ),
     ],
-    errorBuilder: (context, state) => const Scaffold(
-      body: Center(child: Text('Ruta no encontrada')),
-    ),
+    errorBuilder: (context, state) =>
+        const Scaffold(body: Center(child: Text('Ruta no encontrada'))),
   );
 }
