@@ -21,7 +21,11 @@ class TarjetaEnvio extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Material(
@@ -33,10 +37,9 @@ class TarjetaEnvio extends StatelessWidget {
             final fueEntregado = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => DetalleEnvioScreen(envio: {
-                  ...envio,
-                  'precioFormateado': precioFormateado,
-                }),
+                builder: (context) => DetalleEnvioScreen(
+                  envio: {...envio, 'precioFormateado': precioFormateado},
+                ),
               ),
             );
 
@@ -56,21 +59,39 @@ class TarjetaEnvio extends StatelessWidget {
                       Text(
                         envio['razonSocial'],
                         // Se reemplazó el color duro por el secondaryColor de tu tema
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.secondaryColor), 
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppTheme.secondaryColor,
+                        ),
                       ),
                       const SizedBox(height: 4),
-                      Text('Envío #${envio['idEnvio']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                      Text(
+                        'Envío #${envio['idEnvio']}',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 13,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           // Se reemplazó el rojo (Colors.redAccent) por tu primaryColor
-                          const Icon(Icons.location_on, color: AppTheme.primaryColor, size: 18), 
+                          const Icon(
+                            Icons.location_on,
+                            color: AppTheme.primaryColor,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               envio['direccionEntrega'],
                               // Usando secondaryColor con opacidad para textos secundarios en lugar de gris quemado
-                              style: TextStyle(color: AppTheme.secondaryColor.withOpacity(0.7), fontSize: 14, fontWeight: FontWeight.w500), 
+                              style: TextStyle(
+                                color: AppTheme.secondaryColor.withOpacity(0.7),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -81,7 +102,11 @@ class TarjetaEnvio extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 // La flecha ahora resalta usando el primaryColor de tu paleta
-                const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.primaryColor), 
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: AppTheme.primaryColor,
+                ),
               ],
             ),
           ),

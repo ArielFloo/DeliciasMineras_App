@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../services/database_service.dart';
 
 class DetalleEnvioScreen extends StatefulWidget {
   // En el futuro, pasarás el objeto EnvioAsignado completo
-  final Map<String, dynamic> envio; 
+  final Map<String, dynamic> envio;
 
   const DetalleEnvioScreen({super.key, required this.envio});
 
@@ -15,7 +16,7 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
 
   void _iniciarRecorrido() {
     setState(() => _enCamino = true);
-    
+
     // TODO: Aquí irá la notificación/UPDATE a Supabase para avisar al cliente
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -26,9 +27,32 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
     );
   }
 
-  void _confirmarEntrega() {
-    // TODO: Aquí irá el UPDATE a la base de datos (Hito 2: Cambiar estado del envío)
-    Navigator.pop(context, true); // Retornamos 'true' para avisar que se entregó y sacarlo de la lista
+  Future<void> _confirmarEntrega() async {
+    try {
+      final idRaw = widget.envio['idEnvio'] ?? widget.envio['id'];
+      if (idRaw == null) {
+        throw Exception(
+          "ID de envío nulo. Verifica el mapeo en obtenerEnviosRepartidor()",
+        );
+      }
+
+      final int idEnvio = (idRaw as num).toInt();
+      await DatabaseService.instancia.marcarEnvioEntregado(idEnvio);
+
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al confirmar entrega: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -36,7 +60,10 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: Text(widget.envio['razonSocial'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          widget.envio['razonSocial'],
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E293B),
@@ -50,22 +77,26 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
                 // Tarjeta de Información de Entrega
                 _buildInfoCard(),
                 const SizedBox(height: 20),
-                
+
                 // Sección de Documento Asociado (Factura / Boleta)
                 _buildDocumentoCard(),
                 const SizedBox(height: 24),
-                
+
                 // Desglose de Carga
                 const Text(
                   'Desglose de la Carga',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildDetalleCarga(),
               ],
             ),
           ),
-          
+
           // Barra de Acción Inferior Estacionaria
           _buildActionBottomBar(),
         ],
@@ -79,7 +110,9 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+        ],
       ),
       child: Column(
         children: [
@@ -90,7 +123,10 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
               Expanded(
                 child: Text(
                   widget.envio['direccionEntrega'],
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
                 ),
               ),
             ],
@@ -103,12 +139,22 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
                 children: [
                   const Icon(Icons.schedule, color: Colors.grey, size: 20),
                   const SizedBox(width: 8),
-                  Text('Estimado: ${widget.envio['horaEstimada']}', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+                  Text(
+                    'Estimado: ${widget.envio['horaEstimada']}',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
               Text(
                 widget.envio['precioFormateado'],
-                style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold, fontSize: 16),
+                style: TextStyle(
+                  color: Colors.green.shade700,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ],
           ),
@@ -130,13 +176,29 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.description_rounded, color: Colors.blue.shade700, size: 28),
+              Icon(
+                Icons.description_rounded,
+                color: Colors.blue.shade700,
+                size: 28,
+              ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Factura Electrónica', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                  Text('N° 440912 - Asociada al pedido', style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 12)),
+                  const Text(
+                    'Factura Electrónica',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  Text(
+                    'N° 440912 - Asociada al pedido',
+                    style: TextStyle(
+                      color: Colors.blueGrey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -146,7 +208,9 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
             onPressed: () {
               // Simulación de visualización
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Abriendo visor de PDF de la factura...')),
+                const SnackBar(
+                  content: Text('Abriendo visor de PDF de la factura...'),
+                ),
               );
             },
           ),
@@ -167,20 +231,35 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+        ],
       ),
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: productos.length,
-        separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+        separatorBuilder: (_, __) =>
+            const Divider(height: 1, indent: 16, endIndent: 16),
         itemBuilder: (context, index) => ListTile(
           leading: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-            child: Text(productos[index]['cant']!, style: TextStyle(color: Colors.blue.shade700, fontWeight: FontWeight.bold)),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              productos[index]['cant']!,
+              style: TextStyle(
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          title: Text(productos[index]['name']!, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+          title: Text(
+            productos[index]['name']!,
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          ),
         ),
       ),
     );
@@ -192,7 +271,13 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -202,9 +287,13 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
           child: ElevatedButton(
             onPressed: _enCamino ? _confirmarEntrega : _iniciarRecorrido,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _enCamino ? Colors.green.shade600 : const Color(0xFF1E293B),
+              backgroundColor: _enCamino
+                  ? Colors.green.shade600
+                  : const Color(0xFF1E293B),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               elevation: 0,
             ),
             child: Row(
@@ -214,7 +303,11 @@ class _DetalleEnvioScreenState extends State<DetalleEnvioScreen> {
                 const SizedBox(width: 10),
                 Text(
                   _enCamino ? 'CONFIRMAR ENTREGA' : 'INICIAR RECORRIDO',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ],
             ),
