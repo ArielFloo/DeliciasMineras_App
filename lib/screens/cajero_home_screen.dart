@@ -5,7 +5,6 @@ import '../widgets/modal_pago_dialog.dart';
 import '../core/app_theme.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
-import '../widgets/CAJERO/tarjeta_resumen_caja.dart';
 import '../widgets/CAJERO/panel_control_cajero.dart';
 import '../widgets/CAJERO/buscador_productos_dialog.dart';
 import '../widgets/CAJERO/buscador_clientes_dialog.dart';
@@ -162,12 +161,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuRealBuscado);
 
       if (index != -1) {
-        _agregarAlCarrito(_productosDisponibles[index], cantidad: cantidadFinal);
+        _agregarAlCarrito(
+          _productosDisponibles[index],
+          cantidad: cantidadFinal,
+        );
         String unidadTexto = input.startsWith('20') ? 'kg' : 'un';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${_productosDisponibles[index]['nombre']} agregado: $cantidadFinal $unidadTexto'),
+            content: Text(
+              '${_productosDisponibles[index]['nombre']} agregado: $cantidadFinal $unidadTexto',
+            ),
             backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 1),
           ),
@@ -199,21 +203,33 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     final index = _productosDisponibles.indexWhere((p) => p['sku'] == skuBuscado);
 
     if (index != -1) {
-      _agregarAlCarrito(_productosDisponibles[index], cantidad: _multiplicador.toDouble());
+      _agregarAlCarrito(
+        _productosDisponibles[index],
+        cantidad: _multiplicador.toDouble(),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Código $numeroIngresado (BD: $skuBuscado) no encontrado en el sistema.')),
+        SnackBar(
+          content: Text(
+            'Código $numeroIngresado (BD: $skuBuscado) no encontrado en el sistema.',
+          ),
+        ),
       );
     }
   }
 
   Future<void> _abrirBuscadorAvanzado() async {
-    final Map<String, dynamic>? productoSeleccionado = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => BuscadorProductosDialog(productos: _productosDisponibles),
-    );
+    final Map<String, dynamic>? productoSeleccionado =
+        await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) =>
+              BuscadorProductosDialog(productos: _productosDisponibles),
+        );
     if (productoSeleccionado != null) {
-      _agregarAlCarrito(productoSeleccionado, cantidad: _multiplicador.toDouble());
+      _agregarAlCarrito(
+        productoSeleccionado,
+        cantidad: _multiplicador.toDouble(),
+      );
     }
   }
 
@@ -223,7 +239,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     final int? nuevoMultiplicador = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Multiplicador de Cantidad', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        title: Text(
+          'Multiplicador de Cantidad',
+          style: TextStyle(color: Theme.of(context).colorScheme.primary),
+        ),
         content: TextField(
           controller: multCtrl,
           keyboardType: TextInputType.number,
@@ -243,7 +262,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, int.tryParse(multCtrl.text)),
+            onPressed: () =>
+                Navigator.pop(context, int.tryParse(multCtrl.text)),
             child: const Text('Aplicar'),
           ),
         ],
@@ -258,10 +278,12 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   }
 
   Future<void> _abrirBuscadorMayoristas() async {
-    final Map<String, dynamic>? clienteEncontrado = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => BuscadorClientesDialog(clientes: _clientesMayoristas),
-    );
+    final Map<String, dynamic>? clienteEncontrado =
+        await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) =>
+              BuscadorClientesDialog(clientes: _clientesMayoristas),
+        );
     if (clienteEncontrado != null) {
       setState(() {
         _clienteSeleccionado = clienteEncontrado;
@@ -275,9 +297,14 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       builder: (context) => AlertDialog(
         title: Text(
           'Programar Pedido',
-          style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.secondary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        content: const Text('¿Este pedido es para retiro en local o requiere despacho al cliente?'),
+        content: const Text(
+          '¿Este pedido es para retiro en local o requiere despacho al cliente?',
+        ),
         actions: [
           OutlinedButton.icon(
             onPressed: () => Navigator.pop(context, 'retiro'),
@@ -298,7 +325,9 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: AppTheme.errorColor,
-            content: Text('Error: El despacho es exclusivo para clientes Empresa. Asigne un cliente mayorista primero.'),
+            content: Text(
+              'Error: El despacho es exclusivo para clientes Empresa. Asigne un cliente mayorista primero.',
+            ),
           ),
         );
         return;
@@ -313,9 +342,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => ModalDetalleVentas(
-        productosDisponibles: _productosDisponibles,
-      ),
+      builder: (context) =>
+          ModalDetalleVentas(productosDisponibles: _productosDisponibles),
     );
   }
 
@@ -390,14 +418,22 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
       final bool? confirmar = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: AppTheme.warningColor, size: 32),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.warningColor,
+                size: 32,
+              ),
               const SizedBox(width: 8),
               Text(
                 '¿Emitir Boleta?',
-                style: TextStyle(color: Theme.of(context).colorScheme.secondary),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
               ),
             ],
           ),
@@ -418,7 +454,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sí, emitir Boleta', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Sí, emitir Boleta',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -445,7 +484,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Emitir Vale Interno', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+        title: Text(
+          'Emitir Vale Interno',
+          style: TextStyle(color: Theme.of(context).colorScheme.primary),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -481,7 +523,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                 Navigator.pop(context, motivo);
               }
             },
-            child: const Text('Registrar Vale', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Registrar Vale',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -525,9 +570,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
     final bool? confirmar = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => ModalCierreCaja(
-        tiempoTranscurrido: _tiempoTranscurrido,
-      ),
+      builder: (context) =>
+          ModalCierreCaja(tiempoTranscurrido: _tiempoTranscurrido),
     );
 
     // Mantenemos intacta la lógica de cierre original
@@ -545,7 +589,8 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
   }
 
   Future<void> _anularVenta() async {
-    if (_carrito.isEmpty && _clienteSeleccionado == null && _tipoPedido == null) return;
+    if (_carrito.isEmpty && _clienteSeleccionado == null && _tipoPedido == null)
+      return;
 
     final bool? confirmar = await showDialog<bool>(
       context: context,
@@ -553,9 +598,16 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.warning_rounded, color: AppTheme.errorColor, size: 32),
+            const Icon(
+              Icons.warning_rounded,
+              color: AppTheme.errorColor,
+              size: 32,
+            ),
             const SizedBox(width: 8),
-            Text('¿Anular toda la venta?', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
+            Text(
+              '¿Anular toda la venta?',
+              style: TextStyle(color: Theme.of(context).colorScheme.secondary),
+            ),
           ],
         ),
         content: const Text(
@@ -573,7 +625,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sí, Anular Venta', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Sí, Anular Venta',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -660,14 +715,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
         final bool? autorizado = await showDialog<bool>(
           context: context,
           builder: (context) => ModalValidacionIdentidad(
-            cajeroActual: _cajeroActual!, // ¡Ya no dará error porque lo rescatamos arriba!
+            cajeroActual:
+                _cajeroActual!, // ¡Ya no dará error porque lo rescatamos arriba!
           ),
         );
 
         if (autorizado != true) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Operación cancelada. No se pudo reanudar la caja.'),
+              content: Text(
+                'Operación cancelada. No se pudo reanudar la caja.',
+              ),
               backgroundColor: AppTheme.errorColor,
             ),
           );
@@ -766,7 +824,10 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('Cargando terminal de venta...', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Cargando terminal de venta...',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ),
@@ -830,12 +891,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                                 foregroundColor: _multiplicador > 1
                                     ? Colors.white
                                     : colorScheme.primary,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
                               onPressed: _configurarMultiplicador,
                               child: Text(
                                 'x$_multiplicador',
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -851,10 +917,18 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                             decoration: InputDecoration(
                               labelText: 'Pistolear o Ingresar SKU',
                               hintText: 'Ej: 1, 2, 3...',
-                              prefixIcon: const Icon(Icons.qr_code_scanner, size: 32),
+                              prefixIcon: const Icon(
+                                Icons.qr_code_scanner,
+                                size: 32,
+                              ),
                               suffixIcon: IconButton(
-                                icon: Icon(Icons.keyboard_return, color: colorScheme.primary),
-                                onPressed: () => _procesarCodigoEscaneado(_skuController.text),
+                                icon: Icon(
+                                  Icons.keyboard_return,
+                                  color: colorScheme.primary,
+                                ),
+                                onPressed: () => _procesarCodigoEscaneado(
+                                  _skuController.text,
+                                ),
                               ),
                             ),
                             onSubmitted: _procesarCodigoEscaneado,
@@ -865,8 +939,17 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                           height: 60,
                           child: OutlinedButton.icon(
                             onPressed: _abrirBuscadorAvanzado,
-                            icon: Icon(Icons.search, color: colorScheme.primary),
-                            label: const Text('Buscar por Nombre', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            icon: Icon(
+                              Icons.search,
+                              color: colorScheme.primary,
+                            ),
+                            label: const Text(
+                              'Buscar por Nombre',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -888,15 +971,22 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                           children: [
                             if (_tipoPedido != null)
                               Chip(
-                                backgroundColor: _tipoPedido == 'despacho' ? AppTheme.warningColor.withOpacity(0.2) : AppTheme.infoColor.withOpacity(0.2),
+                                backgroundColor: _tipoPedido == 'despacho'
+                                    ? AppTheme.warningColor.withOpacity(0.2)
+                                    : AppTheme.infoColor.withOpacity(0.2),
                                 label: Text(
-                                  _tipoPedido == 'despacho' ? '🚚 DESPACHO' : '🛍️ RETIRO',
+                                  _tipoPedido == 'despacho'
+                                      ? '🚚 DESPACHO'
+                                      : '🛍️ RETIRO',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: _tipoPedido == 'despacho' ? AppTheme.warningColor : AppTheme.infoColor,
+                                    color: _tipoPedido == 'despacho'
+                                        ? AppTheme.warningColor
+                                        : AppTheme.infoColor,
                                   ),
                                 ),
-                                onDeleted: () => setState(() => _tipoPedido = null),
+                                onDeleted: () =>
+                                    setState(() => _tipoPedido = null),
                               ),
 
                             const SizedBox(width: 16),
@@ -905,11 +995,20 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                               TextButton.icon(
                                 style: TextButton.styleFrom(
                                   foregroundColor: AppTheme.errorColor,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                 ),
                                 onPressed: _anularVenta,
                                 icon: const Icon(Icons.delete_sweep),
-                                label: const Text('Anular Total Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                label: const Text(
+                                  'Anular Total Venta',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
                           ],
                         ),
@@ -919,9 +1018,13 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
 
                     if (_carrito.isNotEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8.0,
+                          horizontal: 16.0,
+                        ),
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceVariant, // Respetando el tema
+                          color:
+                              colorScheme.surfaceVariant, // Respetando el tema
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Row(
@@ -1046,10 +1149,22 @@ class _CajeroHomeScreenState extends State<CajeroHomeScreen> {
                       const Divider(),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.local_shipping, color: AppTheme.warningColor),
-                        title: const Text('Costo de Envío Fijo', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        leading: const Icon(
+                          Icons.local_shipping,
+                          color: AppTheme.warningColor,
+                        ),
+                        title: const Text(
+                          'Costo de Envío Fijo',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         // Se aplica AppFormatters.formatearDinero a la tarifa de despacho
-                        trailing: Text('\$${AppFormatters.formatearDinero(_tarifaDespachoFija)}', style: const TextStyle(fontSize: 18)),
+                        trailing: Text(
+                          '\$${AppFormatters.formatearDinero(_tarifaDespachoFija)}',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                       ),
                       //
                       const SizedBox(height: 12),

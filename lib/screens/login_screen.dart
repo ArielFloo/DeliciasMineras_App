@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../services/auth_service.dart'; 
+import '../services/auth_service.dart';
 import '../utils/app_formatters.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,18 +11,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>(); 
+  final _formKey = GlobalKey<FormState>();
 
   // Eliminamos _rolSeleccionado y _roles porque ahora es automático
   final TextEditingController _rutCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
-  
-  bool _isLoading = false;
-  bool _obscureText = true; 
 
-void _ejecutarLogin() async {
+  bool _isLoading = false;
+  bool _obscureText = true;
+
+  void _ejecutarLogin() async {
     if (!_formKey.currentState!.validate()) {
-      return; 
+      return;
     }
 
     setState(() => _isLoading = true);
@@ -30,11 +30,11 @@ void _ejecutarLogin() async {
 
     // Llamamos al servicio de autenticación con el RUT ya limpio
     final usuarioLogueado = await AuthService().login(
-      rutLimpio, 
+      rutLimpio,
       _passwordCtrl.text.trim(),
     );
 
-    if (!mounted) return; 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (usuarioLogueado != null) {
@@ -91,12 +91,15 @@ void _ejecutarLogin() async {
               ),
             ),
             child: Center(
-              child: SingleChildScrollView( 
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 450),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 48,
+                    ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(24),
@@ -125,16 +128,19 @@ void _ejecutarLogin() async {
                           const SizedBox(height: 24),
                           Text(
                             "Iniciar Sesión",
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
-                              letterSpacing: -0.5,
-                            ),
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                  letterSpacing: -0.5,
+                                ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             "Ingresa tus credenciales para continuar",
-                            style: TextStyle(color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           const SizedBox(height: 40),
 
@@ -145,7 +151,9 @@ void _ejecutarLogin() async {
                               labelText: "RUT del Empleado",
                               hintText: "Ej: 12345678-9",
                               prefixIcon: const Icon(Icons.badge_outlined),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                             inputFormatters: [RutInputFormatter()],
                             validator: (val) {
@@ -160,14 +168,24 @@ void _ejecutarLogin() async {
                           // CONTRASEÑA
                           TextFormField(
                             controller: _passwordCtrl,
-                            obscureText: _obscureText, 
+                            obscureText: _obscureText,
                             decoration: InputDecoration(
                               labelText: "Contraseña",
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              prefixIcon: const Icon(
+                                Icons.lock_outline_rounded,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               suffixIcon: IconButton(
-                                icon: Icon(_obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                                onPressed: () => setState(() => _obscureText = !_obscureText),
+                                icon: Icon(
+                                  _obscureText
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                                onPressed: () => setState(
+                                  () => _obscureText = !_obscureText,
+                                ),
                               ),
                             ),
                             validator: (val) {
@@ -184,18 +202,29 @@ void _ejecutarLogin() async {
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               minimumSize: const Size(double.infinity, 56),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               backgroundColor: colorScheme.primary,
                               foregroundColor: Colors.white,
                             ),
                             onPressed: _isLoading ? null : _ejecutarLogin,
-                            child: _isLoading 
+                            child: _isLoading
                                 ? const SizedBox(
-                                    height: 24, 
-                                    width: 24, 
-                                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white)
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      color: Colors.white,
+                                    ),
                                   )
-                                : const Text("Ingresar", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                : const Text(
+                                    "Ingresar",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
                           const SizedBox(height: 24),
                         ],
@@ -235,22 +264,66 @@ void _ejecutarLogin() async {
                         SizedBox(width: 8),
                         Text(
                           'Mock Data (Testing)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
                         ),
                       ],
                     ),
                     Divider(color: Colors.black26),
-                    Text('👤 Cajero:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 11.000.054-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text(
+                      '👤 Cajero:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'RUT: 11.000.054-K | Pass: 1234\n',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
 
-                    Text('👤 Cajero local 2:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 10.000.053-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
-                    
-                    Text('🚚 Repartidor:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 11.000.056-K | Pass: 1234\n', style: TextStyle(fontSize: 12, color: Colors.black87)),
-                    
-                    Text('⚙️ Administrador:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                    Text('RUT: 33.333.333-3 | Pass: 1234', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text(
+                      '👤 Cajero local 2:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'RUT: 10.000.053-K | Pass: 1234\n',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+
+                    Text(
+                      '🚚 Repartidor:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'RUT: 11.169.149-K | Pass: 1234\n',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+
+                    Text(
+                      '⚙️ Administrador:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'RUT: 33.333.333-3 | Pass: 1234',
+                      style: TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
                   ],
                 ),
               ),
