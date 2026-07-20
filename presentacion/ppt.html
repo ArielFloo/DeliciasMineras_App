@@ -472,8 +472,63 @@
             <!--fin del DDL ctm-->
 
             <section>
+            <section>
+                <h2>4. Demostración del Sistema</h2>
+            </section>
+            <section>
+                    <h3>Consultas Funcionales</h3>
+                    <div style="display: flex; gap: 30px; align-items: flex-start; justify-content: center; width: 90%; margin: 0 auto;">
+                        
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                            <textarea id="sqlInput" style="width: 100%; margin: 0;">
+WITH AnaliticaClientes AS (
+    SELECT 
+        c.rut AS rut_cliente,
+        c.nombrecliente AS nombre_cliente,
+        c.tipocliente AS tipo_registrado,
+        COUNT(DISTINCT com.idcompra) AS transacciones_totales,
+        COALESCE(SUM(b.cantidad), 0) AS total_unidades_compradas
+    FROM deliciasmineras.cliente c
+    JOIN deliciasmineras.compra com ON c.rut = com.rutcliente
+    JOIN deliciasmineras.boletacompra b ON com.idcompra = b.idcompra
+    GROUP BY c.rut, c.nombrecliente, c.tipocliente
+)
+SELECT 
+    rut_cliente,
+    nombre_cliente,
+    transacciones_totales,
+    total_unidades_compradas,
+ 
+    CASE 
+        WHEN total_unidades_compradas >= (SELECT AVG(total_unidades_compradas) * 1.5 FROM AnaliticaClientes) THEN 'Cliente Mayorista / Crítico'
+        WHEN total_unidades_compradas >= (SELECT AVG(total_unidades_compradas) FROM AnaliticaClientes) THEN 'Cliente de Consumo Regular'
+        ELSE 'Cliente Ocasional'
+    END AS perfil_volumen,
+    
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM deliciasmineras.empresa e WHERE e.rut = rut_cliente) THEN 'Verificado como Empresa'
+        ELSE 'Cliente Particular'
+    END AS verificacion_corporativa
+FROM AnaliticaClientes
+
+WHERE transacciones_totales > (SELECT AVG(transacciones_totales) FROM AnaliticaClientes)
+ORDER BY total_unidades_compradas DESC
+LIMIT 5;
+            </textarea>
+                            <button onclick="ejecutarSQL()" style="width: auto; margin-top: 15px; padding: 10px 30px;">Ejecutar Consulta</button>
+                        </div>
+
+                        <div style="flex: 1; display: flex; flex-direction: column; width: 100%;">
+                            <div id="output" style="width: 100%; margin: 0;">
+                                <div style="border: 2px dashed #6272a4; padding: 40px; border-radius: 8px; color: #6272a4; font-size: 0.6em; text-align: center;">
+                                    Los resultados...
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
                 <section>
-                    <h2>4. Demostración del Sistema</h2>
                     <div style="display: flex; justify-content: space-around; font-family: sans-serif; line-height: 3.6;">
                         <div>
                             <img src="assest_ppt/1.png">
@@ -491,31 +546,6 @@
                         <div>
                             <img src="assest_ppt/4.png">
                         </div>
-                    </div>
-                </section>
-                <section>
-                    <h2>Consultas Funcionales</h2>
-                    <div style="display: flex; gap: 30px; align-items: flex-start; justify-content: center; width: 90%; margin: 0 auto;">
-                        
-                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
-                            <textarea id="sqlInput" style="width: 100%; margin: 0;">---cualidades Clientes han realizado más coompras---
-                SELECT c.nombrecliente AS nombrecliente, com.rutcliente AS rut, COUNT(com.idcompra) AS total_compras
-                FROM deliciasMineras.compra com
-                JOIN deliciasMineras.cliente c ON com.rutcliente = c.rut
-                GROUP BY c.nombrecliente, com.rutcliente
-                ORDER BY total_compras DESC
-                LIMIT 5;</textarea>
-                            <button onclick="ejecutarSQL()" style="width: auto; margin-top: 15px; padding: 10px 30px;">Ejecutar Consulta</button>
-                        </div>
-
-                        <div style="flex: 1; display: flex; flex-direction: column; width: 100%;">
-                            <div id="output" style="width: 100%; margin: 0;">
-                                <div style="border: 2px dashed #6272a4; padding: 40px; border-radius: 8px; color: #6272a4; font-size: 0.6em; text-align: center;">
-                                    Los resultados...
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                 </section>
             </section>
